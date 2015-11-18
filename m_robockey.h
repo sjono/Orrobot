@@ -2,8 +2,10 @@
 // Orrobot Library
 // Version: 0.1
 // Author: Jono Sanders
-// Date: Nov 17 2015
+// Date: Nov 18 2015
 // -----------------------------------------------------------------------------
+
+#include "m_usb.h"
 
 void localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
@@ -153,8 +155,10 @@ void localize(int* locate)
             anglXY[i] = center[i]-ADcent[i];
         }
         
-        rinkXY[0] = cos(theta)*anglXY[0]+sin(theta)*anglXY[1];      // x' = cos(theta)*x + sin(theta)*y
+        rinkXY[0] = -(cos(theta)*anglXY[0]+sin(theta)*anglXY[1]);      // x' = cos(theta)*x + sin(theta)*y
         rinkXY[1] = -sin(theta)*anglXY[0] + cos(theta)*anglXY[1];   // y' = -sin(theta)*x + cos(theta)*y
+        if (rinkXY[0] < 0){
+            rinkXY[1] = -rinkXY[1];}
     
         //set locate variable to look at rinkLocate(1&2)
         *locate = rinkXY[0]; //Tested
@@ -166,8 +170,9 @@ void localize(int* locate)
                 m_usb_tx_int(blobs[i]);
                 m_usb_tx_string(", ");
                 }
-            m_usb_tx_string("\n");
-            m_usb_tx_string("Location in the rink is \n");
+            m_usb_tx_string("\n");*/
+            
+            /*m_usb_tx_string("Location in the rink is \n"); //PRINT OUT CALCULATIONS
             m_usb_tx_string("X: ");
             m_usb_tx_int(rinkXY[0]);        
             m_usb_tx_string(", Y: ");
