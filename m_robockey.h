@@ -7,6 +7,16 @@
 
 #include "m_usb.h"
 
+#define PLAY 161
+#define PAUSE 164
+#define COMM 160
+#define SEARCH1 20
+#define SEARCH2 25
+#define HASPUCK 30
+#define GO2GOAL 35
+#define SHOOT 40
+#define DEFEND 45
+
 void localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
 
@@ -182,4 +192,40 @@ void localize(int* locate)
             m_usb_tx_string("\n");
             m_usb_tx_string("\n");*/
             
+}
+
+void timer0_init()	//For mWii Read
+{
+	set(TCCR0B,WGM02);	//Up to OCR0A PWM Mode
+	set(TCCR0A,WGM01);
+	set(TCCR0A,WGM00);
+
+	OCR0A=313;	
+
+	set(TCCR0B,CS02);	//Start Timer with /256 Prescalar
+	clear(TCCR0B,CS01);
+	clear(TCCR0B,CS00);
+
+	set(TIMSK0,OCR0A);	//Interrupt when match occurs
+}
+
+void timer1_init()	//For motors to run at ~8KHz
+{
+	clear(TCCR1B,WGM13);	//Up to 0x00FF PWM Mode
+	set(TCCR1B,WGM12);		//Mode 5
+	clear(TCCR1A,WGM11);
+	set(TCCR1A,WGM10);
+
+	set(TCCR1A,COM1A1);		//Clear B5 at OCR1A match and set at rollover
+	clear(TCCR1A,COM1A1);
+
+	set(TCCR1A,COM1B1);		//Clear B6 at OCRB match and set at rollover
+	clear(TCCR1A,COM1B1);
+
+	clear(TCCR0B,CS02);	//Start Timer with /256 Prescalar
+	set(TCCR0B,CS01);
+	clear(TCCR0B,CS00);
+
+	OCR1A = 40/100*256;
+	OCR1B = OCR1A;
 }
