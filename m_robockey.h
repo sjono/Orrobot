@@ -19,6 +19,10 @@
 
 void localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
+void timer0_init();
+//Initializes Timer0 for 100 readings per second (confirm?)
+void timer1_init();
+//Initialized Timer1 to 7000 Hz, for PWM output to motors (confirm?)
 
 // -----------------------------------------------------------------------------
 
