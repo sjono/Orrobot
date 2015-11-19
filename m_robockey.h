@@ -20,10 +20,12 @@
 void localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
 void timer0_init();
-//Initializes Timer0 for 100 readings per second (confirm?)
+//Initializes Timer0 for 100 readings per second
 void timer1_init();
-//Initialized Timer1 to 7000 Hz, for PWM output to motors (confirm?)
-
+//Initialized Timer1 to 7800 Hz, for PWM output to motors
+void sevensegdispl(int state)
+//Takes input state as a number from 0 - 9 and outputs to pins B0 - B3 to 7seg driver IC
+    
 // -----------------------------------------------------------------------------
 
 void localize(int* locate)
@@ -210,7 +212,7 @@ void timer0_init()	//For mWii Read
 	clear(TCCR0B,CS01);
 	clear(TCCR0B,CS00);
 
-	set(TIMSK0,OCR0A);	//Interrupt when match occurs
+	set(TIMSK0,OCIE0A);	//Interrupt when match occurs
 }
 
 void timer1_init()	//For motors to run at ~8KHz
@@ -232,4 +234,81 @@ void timer1_init()	//For motors to run at ~8KHz
 
 	OCR1A = 40/100*256;
 	OCR1B = OCR1A;
+}
+
+void sevensegdispl(int state)
+{	set(DDRB,0);
+	set(DDRB,1);
+	set(DDRB,2);
+	set(DDRB,3);
+	switch(state)
+	{
+	case 0:
+	clear(PORTB,0);
+	clear(PORTB,1);
+	clear(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 1:
+	set(PORTB,0);
+	clear(PORTB,1);
+	clear(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 2:
+	clear(PORTB,0);
+	set(PORTB,1);
+	clear(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 3:
+	set(PORTB,0);
+	set(PORTB,1);
+	clear(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 4:
+	clear(PORTB,0);
+	clear(PORTB,1);
+	set(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 5:
+	set(PORTB,0);
+	clear(PORTB,1);
+	set(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 6:
+	clear(PORTB,0);
+	set(PORTB,1);
+	set(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 7:
+	set(PORTB,0);
+	set(PORTB,1);
+	set(PORTB,2);
+	clear(PORTB,3);
+	break;
+	case 8:
+	clear(PORTB,0);
+	clear(PORTB,1);
+	clear(PORTB,2);
+	set(PORTB,3);
+	break;
+	case 9:
+	set(PORTB,0);
+	clear(PORTB,1);
+	clear(PORTB,2);
+	set(PORTB,3);
+	break;	
+	default:
+	set(PORTB,0);
+	set(PORTB,1);
+	set(PORTB,2);
+	set(PORTB,3);
+	break;
+	}
+	
 }
