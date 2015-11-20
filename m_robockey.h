@@ -6,6 +6,10 @@
 // -----------------------------------------------------------------------------
 
 #include "m_usb.h"
+#include "m_general.h"
+#include "m_bus.h"
+#include "m_rf.h"
+#include "m_wii.h"
 
 #define PLAY 161
 #define PAUSE 164
@@ -23,7 +27,7 @@ void timer0_init();
 //Initializes Timer0 for 100 readings per second
 void timer1_init();
 //Initialized Timer1 to 7800 Hz, for PWM output to motors
-void sevensegdispl(int state)
+void sevensegdispl(int state);
 //Takes input state as a number from 0 - 9 and outputs to pins B0 - B3 to 7seg driver IC
     
 // -----------------------------------------------------------------------------
