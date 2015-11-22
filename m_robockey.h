@@ -70,29 +70,31 @@ void localize(int* locate)
     Pt3to1 = sqrt(Pt3to1);
 
         //Calculate all of the ratios
-        float ratio[20];
+        float ratio[24];
     
-    ratio[0]=Pt4to1/Pt1to2; //(10) Inv is Pt1to2/Pt4to1
-    ratio[1]=Pt1to2/Pt3to1; //(11) Inv is Pt3to1/Pt1to2
-    ratio[2]=Pt1to2/Pt2to3; //(12) Inv is Pt2to3/Pt1to2
-    ratio[3]=Pt1to2/Pt2to4; //(13) Inv is Pt2to4/Pt1to2
-    ratio[4]=Pt2to3/Pt3to4; //(14) Inv is Pt3to4/Pt2to3
-    ratio[5]=Pt2to3/Pt3to1; //(15) Inv is Pt3to1/Pt2to3
-    ratio[6]=Pt3to4/Pt4to1; //(16) Inv is Pt4to1/Pt3to4
-    ratio[7]=Pt2to4/Pt4to1; //(17) Inv is Pt4to1/Pt2to4
-    ratio[8]=Pt2to4/Pt2to3; //(18) Inv is Pt2to3/Pt2to4
-    ratio[9]=Pt3to1/Pt3to4; //(19) Inv is Pt3to4/Pt3to1
-      
-      for (i=0; i < 10; i++) //Include the inverse ratios
+    ratio[0]=Pt4to1/Pt3to1; //(12) Inv is Pt3to1/Pt4to1
+    ratio[1]=Pt4to1/Pt3to4; //(13) Inv is Pt3to4/Pt4to1
+    ratio[2]=Pt4to1/Pt1to2; //(14) Inv is Pt1to2/Pt4to1
+    ratio[3]=Pt4to1/Pt2to4; //(15) Inv is Pt2to4/Pt4to1
+    ratio[4]=Pt3to1/Pt2to3; //(16) Inv is Pt2to3/Pt3to1
+    ratio[5]=Pt3to1/Pt3to4; //(17) Inv is Pt3to4/Pt3to1
+    ratio[6]=Pt3to1/Pt1to2; //(18) Inv is Pt1to2/Pt3to1
+    ratio[7]=Pt2to3/Pt3to4; //(19) Inv is Pt3to4/Pt2to3
+    ratio[8]=Pt2to3/Pt1to2; //(20) Inv is Pt1to2/Pt2to3
+    ratio[9]=Pt2to3/Pt2to4; //(21) Inv is Pt2to4/Pt2to3
+    ratio[10]=Pt3to4/Pt2to4; //(22) Inv is Pt2to4/Pt3to4
+    ratio[11]=Pt1to2/Pt2to4; //(23) Inv is Pt2to4/Pt1to2
+          
+    for (i=0; i < 12; i++) //Include the inverse ratios
       {
-        ratio[i+10]=1/ratio[i];
+        ratio[i+12]=1/ratio[i];
       }
     
     int maxpt=0;
     double maxratio=0;
-    for (i=0; i < 20; i++)   // Sum of the squares (X^2+Y^2)
+    for (i=0; i < 24; i++)   // Sum of the squares (X^2+Y^2)
     {
-        if(ratio[i] > maxratio) //Usually the ratio DA/AB
+        if(ratio[i] > maxratio) //Largest ratio should be DA/AB
         {
             maxpt = i;
             maxratio = ratio[i];
@@ -103,83 +105,98 @@ void localize(int* locate)
             for (i=0; i<2; i++){
                 PtD[i]=Pt4[i]; PtA[i]=Pt1[i];}
             break;
-        case 1: //D is Pt2, A is Pt1
+        case 1: //D is Pt1, A is Pt4
            for (i=0; i<2; i++){
-                PtD[i]=Pt2[i]; PtA[i]=Pt1[i];}
+                PtD[i]=Pt1[i]; PtA[i]=Pt4[i];}
             break;
-        case 2: //D is Pt1, A is Pt2
+        case 2: //D is Pt4, A is Pt1
            for (i=0; i<2; i++){
-                PtD[i]=Pt2[i]; PtA[i]=Pt2[i];}
+                PtD[i]=Pt4[i]; PtA[i]=Pt1[i];}
             break;
-        case 3: //D is Pt1, A is Pt2
+        case 3: //D is Pt1, A is Pt4
           for (i=0; i<2; i++){
-                PtD[i]=Pt1[i]; PtA[i]=Pt2[i];}
+                PtD[i]=Pt1[i]; PtA[i]=Pt4[i];}
             break;
-        case 4: //D is Pt2, A is Pt3
+        case 4: //D is Pt1, A is Pt3
+          for (i=0; i<2; i++){
+                PtD[i]=Pt1[i]; PtA[i]=Pt3[i];}
+            break;
+        case 5: //D is Pt1, A is Pt3
+          for (i=0; i<2; i++){
+                PtD[i]=Pt1[i]; PtA[i]=Pt3[i];}
+            break;
+        case 6: //D is Pt3, A is Pt1
+          for (i=0; i<2; i++){
+                PtD[i]=Pt3[i]; PtA[i]=Pt1[i];}
+            break;
+        case 7: //D is Pt2, A is Pt3
           for (i=0; i<2; i++){
                 PtD[i]=Pt2[i]; PtA[i]=Pt3[i];}
             break;
-        case 5: //D is Pt2, A is Pt3
-          for (i=0; i<2; i++){
-                PtD[i]=Pt2[i]; PtA[i]=Pt3[i];}
+        case 8: //D is Pt3, A is Pt2
+            for (i=0; i<2; i++){
+                PtD[i]=Pt3[i]; PtA[i]=Pt2[i];}
             break;
-        case 6: //D is Pt3, A is Pt4
+        case 9: //D is Pt3, A is Pt2
+          for (i=0; i<2; i++){
+                PtD[i]=Pt3[i]; PtA[i]=Pt2[i];}
+            break;
+        case 10: //D is Pt3, A is Pt4
           for (i=0; i<2; i++){
                 PtD[i]=Pt3[i]; PtA[i]=Pt4[i];}
             break;
-        case 7: //D is Pt2, A is Pt4
-          for (i=0; i<2; i++){
-                PtD[i]=Pt2[i]; PtA[i]=Pt4[i];}
+        case 11: //D is Pt1, A is Pt2
+           for (i=0; i<2; i++){
+                PtD[i]=Pt1[i]; PtA[i]=Pt2[i];}
             break;
-        case 8: //D is Pt4, A is Pt2
-            for (i=0; i<2; i++){
-                PtD[i]=Pt4[i]; PtA[i]=Pt2[i];}
-            break;
-        case 9: //D is Pt2, A is Pt1
-          for (i=0; i<2; i++){
-                PtD[i]=Pt2[i]; PtA[i]=Pt1[i];}
-            break;
-        case 10: //D is Pt1, A is Pt3
-          for (i=0; i<2; i++){
-                PtD[i]=Pt1[i]; PtA[i]=Pt3[i];}
-            break;
-        case 11: //D is Pt3, A is Pt1
+        case 12: //D is Pt3, A is Pt1
            for (i=0; i<2; i++){
                 PtD[i]=Pt3[i]; PtA[i]=Pt1[i];}
             break;
-        case 12: //D is Pt3, A is Pt2
+        case 13: //D is Pt3, A is Pt4
+            for (i=0; i<2; i++){
+                PtD[i]=Pt3[i]; PtA[i]=Pt4[i];}
+            break;
+        case 14: //D is Pt2, A is Pt1
+            for (i=0; i<2; i++){
+                PtD[i]=Pt2[i]; PtA[i]=Pt1[i];}
+            break;
+        case 15: //D is Pt2, A is Pt4
            for (i=0; i<2; i++){
-                PtD[i]=Pt3[i]; PtA[i]=Pt2[i];}
+                PtD[i]=Pt2[i]; PtA[i]=Pt4[i];}
             break;
-        case 13: //D is Pt4, A is Pt2
-            for (i=0; i<2; i++){
-                PtD[i]=Pt4[i]; PtA[i]=Pt2[i];}
+        case 16: //D is Pt2, A is Pt3
+          for (i=0; i<2; i++){
+                PtD[i]=Pt2[i]; PtA[i]=Pt3[i];}
             break;
-        case 14: //D is Pt4, A is Pt3
-            for (i=0; i<2; i++){
+        case 17:  //D is Pt4, A is Pt3
+          for (i=0; i<2; i++){
                 PtD[i]=Pt4[i]; PtA[i]=Pt3[i];}
             break;
-        case 15: //D is Pt1, A is Pt3
-           for (i=0; i<2; i++){
-                PtD[i]=Pt1[i]; PtA[i]=Pt3[i];}
-            break;
-        case 16: //D is Pt1, A is Pt4
-          for (i=0; i<2; i++){
-                PtD[i]=Pt1[i]; PtA[i]=Pt4[i];}
-            break;
-        case 17:  //D is Pt1, A is Pt4
-          for (i=0; i<2; i++){
-                PtD[i]=Pt1[i]; PtA[i]=Pt4[i];}
-            break;
-        case 18: //D is Pt3, A is Pt2
+        case 18: //D is Pt2, A is Pt1
         for (i=0; i<2; i++){
-                PtD[i]=Pt3[i]; PtA[i]=Pt2[i];}       
+                PtD[i]=Pt2[i]; PtA[i]=Pt1[i];}       
             break;
         case 19: //D is Pt4, A is Pt3
         for (i=0; i<2; i++){
             PtD[i]=Pt4[i]; PtA[i]=Pt3[i];}       
             break;
-
+        case 20: //D is Pt1, A is Pt2
+        for (i=0; i<2; i++){
+            PtD[i]=Pt1[i]; PtA[i]=Pt2[i];}       
+            break;
+        case 21: //D is Pt4, A is Pt2
+        for (i=0; i<2; i++){
+            PtD[i]=Pt4[i]; PtA[i]=Pt2[i];}       
+            break;
+        case 22: //D is Pt2, A is Pt4
+        for (i=0; i<2; i++){
+            PtD[i]=Pt2[i]; PtA[i]=Pt4[i];}       
+            break;
+        case 23: //D is Pt4, A is Pt2
+        for (i=0; i<2; i++){
+            PtD[i]=Pt4[i]; PtA[i]=Pt2[i];}       
+            break;
     }
         
         
