@@ -46,7 +46,7 @@ void localize(int* locate)
     int rinkXY[2] = {0, 0};
     
 
-    m_wii_read(&blobs[0]); //read from m_wii **Be sure that m_wii is initialized!
+    m_wii_read(&blobs[0]); //read from m_wii **Be sure that m_wii is initialized! [mwii_open()]
     int Pt1[2] = {blobs[0], blobs[1]};
     int Pt2[2] = {blobs[3], blobs[4]};
     int Pt3[2] = {blobs[6], blobs[7]};
@@ -221,58 +221,46 @@ void localize(int* locate)
         *(locate+1) = rinkXY[1];
         *(locate+2) = (float) theta*180/3.14;
     
-        /*m_usb_tx_string("mWii reading is: ");    //PRINT OUT CODE, if desired
-        for (i=0; i<12; i++){
-                m_usb_tx_int(blobs[i]);
-                m_usb_tx_string(", ");
-                }
-            m_usb_tx_string("\n");*/
-            
-            /*m_usb_tx_string("Location in the rink is \n"); //PRINT OUT CALCULATIONS
-            m_usb_tx_string("X: ");
-            m_usb_tx_int(rinkXY[0]);        
-            m_usb_tx_string(", Y: ");
-            m_usb_tx_int(rinkXY[1]);
-            m_usb_tx_string(", Angle: ");
-            m_usb_tx_int(theta*180/3.14);
-            m_usb_tx_string("\n");
-            m_usb_tx_string("\n");*/
             
 }
 
 void timer0_init()	//For mWii Read
 {
-	set(TCCR0B,WGM02);	//Up to OCR0A PWM Mode
-	set(TCCR0A,WGM01);
-	set(TCCR0A,WGM00);
+    TCNT0 = 0;
+    
+    set(TCCR0B,CS02);     // set prescaler to 1024 >> 16 MHz / 1024 = 15,625 counts / sec
+    clear(TCCR0B,CS01);       // 1 0 1
+    set(TCCR0B,CS02);
+    
+    set(TCCR0B, WGM02);     //Up to OCR0A, PWM mode
+    set(TCCR0A, WGM01);     // 1 1 1
+    set(TCCR0A, WGM00);
+    
 
-	OCR0A=313;	
-
-	set(TCCR0B,CS02);	//Start Timer with /256 Prescalar
-	clear(TCCR0B,CS01);
-	clear(TCCR0B,CS00);
-
-	set(TIMSK0,OCIE0A);	//Interrupt when match occurs
+    OCR0A = 156;            // Means 15,625 / 156 = 100 Hz or 10 ms per cycle
+    set(TIMSK0,OCIE0A);          //Sets an interrupt to occur whenever OCR0A is reached
 }
 
 void timer1_init()	//For motors to run at ~8KHz
 {
-	clear(TCCR1B,WGM13);	//Up to 0x00FF PWM Mode
-	set(TCCR1B,WGM12);		//Mode 5
-	clear(TCCR1A,WGM11);
-	set(TCCR1A,WGM10);
+    clear(TCCR1B,CS12); // set prescaler to 8
+	set(TCCR1B,CS11); // 0 1 0
+	clear(TCCR1B,CS10);
+    
+    clear(TCCR1B, WGM13);     //Mode 5: up to 0X00FF (256), PWM
+	set(TCCR1B, WGM12);     //  0 1 0 1
+	clear(TCCR1A, WGM11);   // Means 2,000,000 / 256 counts >> 7.8KHz
+	set(TCCR1A, WGM10);
+	
+	set(TCCR1A,COM1A1);     // For channel A (B5) clear at OCR1A, set at rollover
+	clear(TCCR1A,COM1A0);   // 1 0
+	//OCR1A = 255*80/100;       // 50% duty cycle for 0x00FF (255)
 
-	set(TCCR1A,COM1A1);		//Clear B5 at OCR1A match and set at rollover
-	clear(TCCR1A,COM1A1);
-
-	set(TCCR1A,COM1B1);		//Clear B6 at OCRB match and set at rollover
-	clear(TCCR1A,COM1B1);
-
-	clear(TCCR0B,CS02);	//Start Timer with /256 Prescalar
-	set(TCCR0B,CS01);
-	clear(TCCR0B,CS00);
-
-	OCR1A = 40/100*256;
+	set(TCCR1A,COM1B1);     // For channel B (B6) clear at OCR1B, set at rollover
+	clear(TCCR1A,COM1B0);   // 1 0
+    
+    
+	OCR1A = 256/10*4;    //Initialize w 40% duty cycle
 	OCR1B = OCR1A;
 }
 
