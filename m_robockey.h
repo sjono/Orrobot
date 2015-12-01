@@ -1,9 +1,10 @@
 // -----------------------------------------------------------------------------
 // Orrobot Library
-// Version: 0.1
-// Author: Jono Sanders
-// Date: Nov 18 2015
-// Update: 11/21 - ratio comparison to include 20 ratios, not just 16 (!), double maxratio (not int!)
+// Version: 1.0
+// Author: Jono Sanders, Aditya Pinapala
+// Date Created: Nov 18 2015
+// Update: 11/21 JS - ratio comparison to include 20 ratios, not just 16 (!), double maxratio (not int!)
+// Update: 12/01 JS - added code to throw out readings of 1023
 // -----------------------------------------------------------------------------
 
 #include "m_usb.h"
@@ -22,7 +23,7 @@
 #define SHOOT 40
 #define DEFEND 45
 
-void localize(int* locate);
+char localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
 void timer0_init();
 //Initializes Timer0 for 100 readings per second
@@ -33,7 +34,7 @@ void sevensegdispl(int state);
     
 // -----------------------------------------------------------------------------
 
-void localize(int* locate)
+char localize(int* locate)
 {
     int i;
     unsigned int blobs[12];
@@ -44,15 +45,43 @@ void localize(int* locate)
     int ADcent[2];    
     int anglXY[2];
     int rinkXY[2] = {0, 0};
-    
+    int lost_ct = 0;
 
     m_wii_read(&blobs[0]); //read from m_wii **Be sure that m_wii is initialized! [mwii_open()]
     int Pt1[2] = {blobs[0], blobs[1]};
     int Pt2[2] = {blobs[3], blobs[4]};
     int Pt3[2] = {blobs[6], blobs[7]};
     int Pt4[2] = {blobs[9], blobs[10]};
+    
+    //~~~Check if any readings should be thrown out (greater than 1022)~~~
+    if(Pt1[1] == 1023)){
+        for (i=0; i < 2; i++){  // Store Pt1 with values from Pt2
+            Pt1[i] = Pt2[i];}
+        lost_ct++;}
+    
+    if(Pt2[1] == 1023){
+        for (i=0; i < 2; i++){   // Store Pt2 with values from Pt3
+            Pt2[i] = Pt3[i];}
+        lost_ct++;}
+    
+    if(Pt3[1] == 1023){
+        for (i=0; i < 2; i++){   // Store Pt3 with values from Pt4
+            Pt3[i] = Pt4[i];}
+        lost_ct++;}
+    
+    if(Pt4[1] == 1023){
+        for (i=0; i < 2; i++){   // Store Pt4 with values from Pt1
+            Pt4[i] = Pt1[i];}
+        lost_ct++;}
+    
+    if(lost_ct > 1){        // If more than one reading is bad, return 0
+        return 0;}
+    //~~~END READING CHECK~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    
     float Pt1to2=0, Pt2to3=0, Pt3to4=0, Pt4to1=0, Pt2to4=0, Pt3to1=0;
-    for (i=0; i < 2; i++)   // Sum of the squares (X^2+Y^2)
+    // Calculate magnitude of connecting line sqrt [(X1-X2)^2+(Y2-Y1)^2 ]
+    for (i=0; i < 2; i++)   // Calculate sum of squares (X1-X2)^2+(Y2-Y1)^2
     {
         Pt1to2 += (Pt1[i]-Pt2[i])*(Pt1[i]-Pt2[i]);
         Pt2to3 += (Pt2[i]-Pt3[i])*(Pt2[i]-Pt3[i]);
@@ -62,15 +91,11 @@ void localize(int* locate)
         Pt3to1 += (Pt3[i]-Pt1[i])*(Pt3[i]-Pt1[i]);
     }
     
-    Pt1to2 = sqrt(Pt1to2);
-    Pt2to3 = sqrt(Pt2to3);
-    Pt3to4 = sqrt(Pt3to4);
-    Pt4to1 = sqrt(Pt4to1);
-    Pt2to4 = sqrt(Pt2to4);
-    Pt3to1 = sqrt(Pt3to1);
+    //Calculate the SQUARE ROOTS!
+    Pt1to2 = sqrt(Pt1to2);  Pt2to3 = sqrt(Pt2to3); Pt3to4 = sqrt(Pt3to4);
+    Pt4to1 = sqrt(Pt4to1); Pt2to4 = sqrt(Pt2to4);  Pt3to1 = sqrt(Pt3to1);
 
-        //Calculate all of the ratios
-        float ratio[24];
+    float ratio[24];        //Calculate all of the ratios (and their inverses)
     
     ratio[0]=Pt4to1/Pt3to1; //(12) Inv is Pt3to1/Pt4to1
     ratio[1]=Pt4to1/Pt3to4; //(13) Inv is Pt3to4/Pt4to1
@@ -85,21 +110,19 @@ void localize(int* locate)
     ratio[10]=Pt3to4/Pt2to4; //(22) Inv is Pt2to4/Pt3to4
     ratio[11]=Pt1to2/Pt2to4; //(23) Inv is Pt2to4/Pt1to2
           
-    for (i=0; i < 12; i++) //Include the inverse ratios
-      {
-        ratio[i+12]=1/ratio[i];
-      }
+    for (i=0; i < 12; i++){ //Store the inverse of each ratio
+        ratio[i+12]=1/ratio[i];}
     
-    int maxpt=0;
-    double maxratio=0;
-    for (i=0; i < 24; i++)   // Sum of the squares (X^2+Y^2)
-    {
+    double maxratio=0;  //Store the maximum of the ratios
+    int maxpt=0;        //Store location in the array of max ratio
+    
+    for (i=0; i < 24; i++){   // Sum of the squares (X^2+Y^2)
         if(ratio[i] > maxratio) //Largest ratio should be DA/AB
         {
             maxpt = i;
             maxratio = ratio[i];
-        }
-    }
+        }}
+    
     switch (maxpt){  //Determine which point is D and A from max
         case 0: //D is Pt4, A is Pt1
             for (i=0; i<2; i++){
@@ -196,32 +219,31 @@ void localize(int* locate)
         case 23: //D is Pt4, A is Pt2
         for (i=0; i<2; i++){
             PtD[i]=Pt4[i]; PtA[i]=Pt2[i];}       
-            break;
+            break;}
+        
+        
+    theta = -atan2(PtA[0]-PtD[0],PtA[1]-PtD[1]); //Calculate orientation angle w.r.t. chord AD
+        
+        
+    for (i=0; i<2; i++) //Find the center of chord AD = rink center
+    {
+        ADcent[i] = (PtA[i]+PtD[i])/2;
     }
         
+    for (i=0; i<2; i++) //Find the bot location coordinates with respect to ADcenter
+    {
+        anglXY[i] = center[i]-ADcent[i];
+    }
         
-        theta = -atan2(PtA[0]-PtD[0],PtA[1]-PtD[1]); //Calculate orientation angle w.r.t. chord AD
-        
-        
-        for (i=0; i<2; i++) //Find the center of chord AD = rink center
-        {
-            ADcent[i] = (PtA[i]+PtD[i])/2;
-        }
-        
-        for (i=0; i<2; i++) //Find the bot location coordinates with respect to ADcenter
-        {
-            anglXY[i] = center[i]-ADcent[i];
-        }
-        
-        rinkXY[0] = -(cos(theta)*anglXY[0]+sin(theta)*anglXY[1]);      // x' = cos(theta)*x + sin(theta)*y
-        rinkXY[1] = -sin(theta)*anglXY[0] + cos(theta)*anglXY[1];   // y' = -sin(theta)*x + cos(theta)*y
-    
-        //set locate variable to look at rinkLocate(1&2)
-        *locate = rinkXY[0]; //Tested
-        *(locate+1) = rinkXY[1];
-        *(locate+2) = (float) theta*180/3.14;
-    
-            
+    rinkXY[0] = -(cos(theta)*anglXY[0]+sin(theta)*anglXY[1]);      // x' = cos(theta)*x + sin(theta)*y
+    rinkXY[1] = -sin(theta)*anglXY[0] + cos(theta)*anglXY[1];   // y' = -sin(theta)*x + cos(theta)*y
+
+    //Store rinkLocate[0,1,2] in the bins for "locate" variables
+    *locate = rinkXY[0]; //Tested
+    *(locate+1) = rinkXY[1];
+    *(locate+2) = (float) theta*180/3.14;
+
+    return 1;    //Return 1 to say that localization X, Y and angle have been stored
 }
 
 void timer0_init()	//For mWii Read
