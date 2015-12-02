@@ -45,7 +45,6 @@ char localize(int* locate)
     int ADcent[2];    
     int anglXY[2];
     int rinkXY[2] = {0, 0};
-    int lost_ct = 0;
 
     m_wii_read(&blobs[0]); //read from m_wii **Be sure that m_wii is initialized! [mwii_open()]
     int Pt1[2] = {blobs[0], blobs[1]};
@@ -54,27 +53,7 @@ char localize(int* locate)
     int Pt4[2] = {blobs[9], blobs[10]};
     
     //~~~Check if any readings should be thrown out (greater than 1022)~~~
-    if(Pt1[1] == 1023){
-        for (i=0; i < 2; i++){  // Store Pt1 with values from Pt2
-            Pt1[i] = Pt2[i];}
-        lost_ct++;}
-    
-    if(Pt2[1] == 1023){
-        for (i=0; i < 2; i++){   // Store Pt2 with values from Pt3
-            Pt2[i] = Pt3[i];}
-        lost_ct++;}
-    
-    if(Pt3[1] == 1023){
-        for (i=0; i < 2; i++){   // Store Pt3 with values from Pt4
-            Pt3[i] = Pt4[i];}
-        lost_ct++;}
-    
-    if(Pt4[1] == 1023){
-        for (i=0; i < 2; i++){   // Store Pt4 with values from Pt1
-            Pt4[i] = Pt1[i];}
-        lost_ct++;}
-    
-    if(lost_ct > 1){        // If more than one reading is bad, return 0
+    if(Pt1[1] == 1023 || Pt2[1] == 1023 || Pt3[1] == 1023 || Pt4[1] == 1023)
         return 0;}
     //~~~END READING CHECK~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
