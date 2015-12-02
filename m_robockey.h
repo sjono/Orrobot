@@ -54,7 +54,7 @@ char localize(int* locate)
     int Pt4[2] = {blobs[9], blobs[10]};
     
     //~~~Check if any readings should be thrown out (greater than 1022)~~~
-    if(Pt1[1] == 1023)){
+    if(Pt1[1] == 1023){
         for (i=0; i < 2; i++){  // Store Pt1 with values from Pt2
             Pt1[i] = Pt2[i];}
         lost_ct++;}
