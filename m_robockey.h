@@ -54,7 +54,9 @@ char localize(int* locate)
     
     //~~~Check if any readings should be thrown out (greater than 1022)~~~
     if(Pt1[1] == 1023 || Pt2[1] == 1023 || Pt3[1] == 1023 || Pt4[1] == 1023)
-        return 0;}
+    {
+        return 0;
+    }
     //~~~END READING CHECK~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     
