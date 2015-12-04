@@ -31,6 +31,9 @@ void timer1_init();
 //Initialized Timer1 to 7800 Hz, for PWM output to motors
 void sevensegdispl(int state);
 //Takes input state as a number from 0 - 9 and outputs to pins B0 - B3 to 7seg driver IC
+void go2goal(int* location, int* destlocation);
+//Used to move the bot to the goal location
+
     
 // -----------------------------------------------------------------------------
 
@@ -361,4 +364,76 @@ void sevensegdispl(int state)
 	break;
 	}
 	
+}
+
+void go2goal(int*location, int destangle)
+{ //Looks at the location with respect to the goal location and rotates if necessary
+	int angle_diff;
+	int j;
+	angle_diff = destangle-location[2];
+	int quad = location[3];
+	if(abs(angle_diff)<=20||abs(angle_diff)>=340)	//needs to rotate if error of 20 deg
+	{
+
+		clear(DDRB,5);
+		clear(DDRB,6);
+		for(j=0;j<30000;j++);
+		set(PORTC,6);
+		set(PORTC,7);
+		set(DDRB,5);
+		set(DDRB,6);
+	}
+	
+	else	//ROTATE!
+	{
+
+		if(quad==3 || quad==4)    //Below the X axis
+		{
+			//For bot angle between -angle_to_goal and +angle_to_goal
+			if(destangle<location[2] && 180+destangle>location[2])
+			{
+				clear(DDRB,5);  //Turn off motor
+				clear(DDRB,6);
+				for(j=0;j<30000;j++); //Pause for a certain amount of time
+				set(PORTC,6);   //Clockwise rotation
+				clear(PORTC,7);
+				set(DDRB,5);   //Turn on motors
+				set(DDRB,6);
+			}
+			else	//For bot angle greater than angle_to_goal
+			{	clear(DDRB,5);
+				clear(DDRB,6);
+				for(j=0;j<30000;j++);
+				clear(PORTC,6); // Counter-clockwise rotation
+				set(PORTC,7);
+				set(DDRB,5);
+				set(DDRB,6);
+			}
+		}
+		if(quad==1 || quad==2) //Above the X-axis
+		{
+			if(-180+destangle<location[2] && destangle>location[2])//Counter-Clockwise rotation
+			{
+				clear(DDRB,5);
+				clear(DDRB,6);
+				for(j=0;j<30000;j++);
+				clear(PORTC,6);
+				set(PORTC,7);
+				set(DDRB,5);
+				set(DDRB,6);
+			}
+			else	//Anti-Clockwise rotation
+			{
+				clear(DDRB,5);
+				clear(DDRB,6);
+				for(j=0;j<30000;j++);
+				set(PORTC,6);
+				clear(PORTC,7);
+				set(DDRB,5);
+				set(DDRB,6);
+			}
+		}
+	}
+	OCR1A = 150;
+	OCR1B = 150;
 }
