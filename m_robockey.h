@@ -5,6 +5,7 @@
 // Date Created: Nov 18 2015
 // Update: 11/21 JS - ratio comparison to include 20 ratios, not just 16 (!), double maxratio (not int!)
 // Update: 12/01 JS - added code to throw out readings of 1023
+// Update: 12/03 JS - updated #define SEESPUCK, added F0 - D6 read function, go2puck, motor_stop()
 // -----------------------------------------------------------------------------
 
 #include "m_usb.h"
@@ -18,7 +19,7 @@
 #define COMM 160
 #define SEARCH1 20
 #define SEARCH2 25
-#define HASPUCK 30
+#define SEESPUCK 30
 #define GO2GOAL 35
 #define SHOOT 40
 #define DEFEND 45
@@ -31,6 +32,20 @@ void timer1_init();
 //Initialized Timer1 to 7800 Hz, for PWM output to motors
 void sevensegdispl(int state);
 //Takes input state as a number from 0 - 9 and outputs to pins B0 - B3 to 7seg driver IC
+
+void motor_stop();
+//Stops the motors
+void go2puck(int puckangle);
+//Goes to the puck based on puckangle reading
+
+void D7_read();
+void D6_read();
+void F0_read();
+void F1_read();
+void F4_read();
+void F5_read();
+void F6_read();
+void F7_read();
     
 // -----------------------------------------------------------------------------
 
@@ -343,3 +358,131 @@ void sevensegdispl(int state)
 	}
 	
 }
+
+void D7_read()
+{
+    
+    set(ADCSRB,MUX5);     // 1 0 1 0 sets ADC10, D7
+    clear(ADMUX,MUX2);
+    set(ADMUX,MUX1);
+    clear(ADMUX,MUX0);
+}
+
+void D6_read()
+{     
+    set(ADCSRB,MUX5);     // 1 0 0 1 sets ADC9, D6
+    clear(ADMUX,MUX2);
+    clear(ADMUX,MUX1);
+    set(ADMUX,MUX0);  
+}
+
+
+void F0_read()
+{
+    clear(ADCSRB,MUX5);     // 0 0 0 0 sets ADC0, F0
+    clear(ADMUX,MUX2);
+    clear(ADMUX,MUX1);
+    clear(ADMUX,MUX0);   
+}
+    
+void F1_read()
+{
+    clear(ADCSRB,MUX5);     // 0 0 0 1 sets ADC1, F1
+    clear(ADMUX,MUX2);
+    clear(ADMUX,MUX1);
+    set(ADMUX,MUX0);  
+}
+
+void F4_read()
+{
+    clear(ADCSRB,MUX5);     // 0 1 0 0 sets ADC4, F4
+    set(ADMUX,MUX2);
+    clear(ADMUX,MUX1);
+    clear(ADMUX,MUX0);
+}
+
+void F5_read()
+{
+    clear(ADCSRB,MUX5);     // 0 1 0 1 sets ADC5, F5
+    set(ADMUX,MUX2);
+    clear(ADMUX,MUX1);
+    set(ADMUX,MUX0);  
+}
+void F6_read()
+{
+    clear(ADCSRB,MUX5);     // 0 1 1 0 sets ADC6, F6
+    set(ADMUX,MUX2);
+    set(ADMUX,MUX1);
+    clear(ADMUX,MUX0);
+}
+
+void F7_read()
+{
+    clear(ADCSRB,MUX5);     // 0 1 1 1 sets ADC7, F7
+    clear(ADMUX,MUX2);
+    clear(ADMUX,MUX1);
+    clear(ADMUX,MUX0);  
+}
+
+
+
+void go2puck(int puckangle)
+{
+	int j;
+    m_usb_tx_string("GO TO PUCK EXECUTED! \n"); 
+	if(puckangle == 0)
+	{
+		clear(DDRB,5);
+		clear(DDRB,6);
+		for(j=0;j<30000;j++);
+        
+		//m_usb_tx_string("GO STRAIGHT")
+		//m_usb_tx_string("\n")
+		set(PORTC,6);
+		set(PORTC,7);
+		set(DDRB,5);
+		set(DDRB,6);
+	}
+	else
+	{
+		if(puckangle<0)
+		{
+			clear(DDRB,5);
+			clear(DDRB,6);
+			for(j=0;j<30000;j++);
+            
+			//m_usb_tx_string("COUNTER_CLOCKWISE")
+			//m_usb_tx_string("\n")
+			clear(PORTC,6); // Counter-clockwise rotation
+			set(PORTC,7);
+			set(DDRB,5);
+			set(DDRB,6);
+		}
+		if(puckangle>0)
+		{
+			clear(DDRB,5);  
+			clear(DDRB,6);
+			for(j=0;j<30000;j++); 
+            
+			//m_usb_tx_string("CLOCKWISE")
+			//m_usb_tx_string("\n")
+			set(PORTC,6);   //Clockwise rotation
+			clear(PORTC,7);
+			set(DDRB,5);   //Turn on motors
+			set(DDRB,6);	
+		}
+	}
+	OCR1A = 170;
+	OCR1B = 170;
+	
+}
+
+
+//****************MOTOR STOP FUNCTION********************************//
+void motor_stop()
+{
+	clear(DDRB,5);//clear B5 to turn off L motor
+    clear(DDRB,6); //clear B6 to turn off R motor	
+}
+
+
