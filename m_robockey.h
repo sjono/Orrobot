@@ -6,6 +6,7 @@
 // Update: 11/21 JS - ratio comparison to include 20 ratios, not just 16 (!), double maxratio (not int!)
 // Update: 12/01 JS - added code to throw out readings of 1023
 // Update: 12/03 JS - updated #define SEESPUCK, added F0 - D6 read function, go2puck, motor_stop()
+// Update: 12/05 JS - added puck_detect() function, removed go2goal() - needs rewriting
 // -----------------------------------------------------------------------------
 
 #include "m_usb.h"
@@ -32,16 +33,18 @@ void timer1_init();
 //Initialized Timer1 to 7800 Hz, for PWM output to motors
 void sevensegdispl(int state);
 //Takes input state as a number from 0 - 9 and outputs to pins B0 - B3 to 7seg driver IC
-<<<<<<< HEAD
+
 void go2goal(int* location, int* destlocation);
 //Used to move the bot to the goal location
 
-=======
 
 void motor_stop();
 //Stops the motors
 void go2puck(int puckangle);
 //Goes to the puck based on puckangle reading
+
+int puck_detect(int* ADC_read, int* ADC_track, int puckangle);
+//Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
 
 void D7_read();
 void D6_read();
@@ -51,7 +54,6 @@ void F4_read();
 void F5_read();
 void F6_read();
 void F7_read();
->>>>>>> origin/master
     
 // -----------------------------------------------------------------------------
 
@@ -365,20 +367,6 @@ void sevensegdispl(int state)
 	
 }
 
-<<<<<<< HEAD
-void go2goal(int*location, int destangle)
-{ //Looks at the location with respect to the goal location and rotates if necessary
-	int angle_diff;
-	int j;
-	angle_diff = destangle-location[2];
-	int quad = location[3];
-	if(abs(angle_diff)<=20||abs(angle_diff)>=340)	//needs to rotate if error of 20 deg
-	{
-
-		clear(DDRB,5);
-		clear(DDRB,6);
-		for(j=0;j<30000;j++);
-=======
 void D7_read()
 {
     
@@ -444,8 +432,6 @@ void F7_read()
     clear(ADMUX,MUX0);  
 }
 
-
-
 void go2puck(int puckangle)
 {
 	int j;
@@ -458,68 +444,11 @@ void go2puck(int puckangle)
         
 		//m_usb_tx_string("GO STRAIGHT")
 		//m_usb_tx_string("\n")
->>>>>>> origin/master
 		set(PORTC,6);
 		set(PORTC,7);
 		set(DDRB,5);
 		set(DDRB,6);
 	}
-<<<<<<< HEAD
-	
-	else	//ROTATE!
-	{
-
-		if(quad==3 || quad==4)    //Below the X axis
-		{
-			//For bot angle between -angle_to_goal and +angle_to_goal
-			if(destangle<location[2] && 180+destangle>location[2])
-			{
-				clear(DDRB,5);  //Turn off motor
-				clear(DDRB,6);
-				for(j=0;j<30000;j++); //Pause for a certain amount of time
-				set(PORTC,6);   //Clockwise rotation
-				clear(PORTC,7);
-				set(DDRB,5);   //Turn on motors
-				set(DDRB,6);
-			}
-			else	//For bot angle greater than angle_to_goal
-			{	clear(DDRB,5);
-				clear(DDRB,6);
-				for(j=0;j<30000;j++);
-				clear(PORTC,6); // Counter-clockwise rotation
-				set(PORTC,7);
-				set(DDRB,5);
-				set(DDRB,6);
-			}
-		}
-		if(quad==1 || quad==2) //Above the X-axis
-		{
-			if(-180+destangle<location[2] && destangle>location[2])//Counter-Clockwise rotation
-			{
-				clear(DDRB,5);
-				clear(DDRB,6);
-				for(j=0;j<30000;j++);
-				clear(PORTC,6);
-				set(PORTC,7);
-				set(DDRB,5);
-				set(DDRB,6);
-			}
-			else	//Anti-Clockwise rotation
-			{
-				clear(DDRB,5);
-				clear(DDRB,6);
-				for(j=0;j<30000;j++);
-				set(PORTC,6);
-				clear(PORTC,7);
-				set(DDRB,5);
-				set(DDRB,6);
-			}
-		}
-	}
-	OCR1A = 150;
-	OCR1B = 150;
-}
-=======
 	else
 	{
 		if(puckangle<0)
@@ -549,10 +478,8 @@ void go2puck(int puckangle)
 			set(DDRB,6);	
 		}
 	}
-	OCR1A = 170;
-	OCR1B = 170;
-	
 }
+
 
 
 //****************MOTOR STOP FUNCTION********************************//
@@ -562,5 +489,69 @@ void motor_stop()
     clear(DDRB,6); //clear B6 to turn off R motor	
 }
 
+int puck_detect(int* ADC_read, int* ADC_track, int puckangle)
+//IR Readings:   (D6  F0  F7  F1  F4  F5  D7  F6) **On Attacker, F6 is not reading
+//ANGLES: (0deg +45 +45 +90 +135 -135 -90 -45) 
+{
+    int i;
+    
+    if(check(ADCSRA,ADIF) && (ADC_track[0] < 8)) //IF ADC IS READY, READS VALUE AND SETS NEXT PIN TO READ
+        {    
+                ADC_read[ADC_track[0]] = ADC;
+                ADC_track[0]++;
+        
+                set(ADCSRA,ADIF);     //Clears the pin
+                clear(ADCSRA,ADEN);     //Disables the ADC system while changing settings
 
->>>>>>> origin/master
+                switch(ADC_track[0])
+                {
+                case 1:            //Set ADC to read from F0
+                F0_read();        
+                break;
+                case 2:            //Set ADC to read from F7
+                F7_read();
+                break;
+                case 3:            //Set ADC to read from F1
+                F1_read();
+                break;
+                case 4:            //Set ADC to read from F4
+                F4_read();
+                break;
+                case 5:            //Set ADC to read from F5
+                F5_read();
+                break;
+                case 6:            //Set ADC to read from D7
+                D7_read();
+                break;
+                case 7:            //Set ADC to read from F6
+                F6_read();
+                break;
+                case 8:            //Set ADC to read from D6
+                D6_read();
+                break;
+                }
+                set(ADCSRA,ADEN);       //Enable conversions
+                set(ADCSRA,ADSC);       //Start conversions
+        }    
+               
+            
+        if (ADC_track[0]>7)   //Use full ADC array to determine angle (use max point)
+        {
+            ADC_track[0] = 0;   //Reset ADC counter
+            
+            for (i=0; i < 8; i++){   //FIND MAX POINT IN ADC_read              
+                if (ADC_read[i] > ADC_track[1]){
+                    ADC_track[2] = i;   //Store counter location into ADC max location
+                    ADC_track[1] = ADC_read[i];}} //Store max reading into ADC_max location
+            
+            
+            if (ADC_track[2] > 4){ //IF MAX POINT IS (+) turn right
+                puckangle = -90;}
+            else if(ADC_track[2] == 0){    //MAX POINT IS 0 MEANS GO STRAIGHT!
+                 puckangle = 0;}
+            else puckangle = 90; //IF MAX POINT IS (-) turn left
+            ADC_track[1] = 0;          //RESET ADC_max VALUE and FLAG
+        }  
+        
+        return puckangle;
+}
