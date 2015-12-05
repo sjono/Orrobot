@@ -34,14 +34,16 @@ void timer1_init();
 void sevensegdispl(int state);
 //Takes input state as a number from 0 - 9 and outputs to pins B0 - B3 to 7seg driver IC
 
-void go2goal(int* location, int* destlocation);
-//Used to move the bot to the goal location
-
+void go2goal(int* location, int destlocation);
+//Used to move the bot to the goal location by looking at the destination angle
 
 void motor_stop();
 //Stops the motors
 void go2puck(int puckangle);
 //Goes to the puck based on puckangle reading
+
+int goalcalibrate(int*location, int*goallocation);
+//Uses the starting location to store the goal location, returns the starting quadrant (unnecessary?)
 
 int puck_detect(int* ADC_read, int* ADC_track, int puckangle);
 //Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
@@ -247,6 +249,16 @@ char localize(int* locate)
     *(locate+1) = rinkXY[1];
     *(locate+2) = (float) theta*180/3.14;
 
+    //Calculate which quadrant the bot is in and store this in locate[3]
+    if (locate[0] > 0 && locate[1] > 0){
+                locate[3] = 1;}
+            if (locate[0] < 0 && locate[1] > 0){
+                locate[3] = 2;}
+            if (locate[0] < 0 && locate[1] < 0){
+                locate[3] = 3;}
+            if (locate[0] > 0 && locate[1] < 0){
+                locate[3] = 4;}
+    
     return 1;    //Return 1 to say that localization X, Y and angle have been stored
 }
 
@@ -554,4 +566,112 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle)
         }  
         
         return puckangle;
+}
+
+int goalcalibrate(int*location, int*goallocation)
+{
+    int quadrant;
+    if(location[0]>0&&location[1]>0)
+	{
+		set(PORTD,4); //Turn on red LED to indicate going RIGHT 
+        quadrant = 1;	//Top Right
+		goallocation[0]=-380;
+	}
+	if(location[0]<0&&location[1]>0)
+	{	
+		m_red(OFF);
+        set(PORTD,5); //Turn on blue LED to indicate going LEFT
+		quadrant = 2;	//Top Left
+		goallocation[0]=310;
+	}
+	if(location[0]<0&&location[1]<0)
+	{
+		set(PORTD,5); //Turn on blue LED to indicate going LEFT
+        m_red(OFF);
+        set(PORTD,4); //Turn on red LED
+		quadrant = 3;	//Bottom Left
+		goallocation[0]=310;
+	}
+	if(location[0]>0&&location[1]<0)
+	{
+		set(PORTD,4); //Turn on red LED to indicate going RIGHT
+        quadrant = 4;	//Bottom right
+		goallocation[0]=-380;
+	}
+    goallocation[1]=0;
+    goallocation[2]=180+180*atan2(location[1]-goallocation[1],location[0]-goallocation[0])/3.14;
+    
+    return quadrant;
+}
+
+void go2goal(int*location, int destangle)
+{ //Looks at the location with respect to the goal location and rotates if necessary
+	int angle_diff;
+	int j;
+	angle_diff = destangle-location[2];
+	int quad = location[3];
+	if(abs(angle_diff)<=20||abs(angle_diff)>=340)	//goes straight if angle difference is +/- 20 deg
+	{
+
+		clear(DDRB,5);
+		clear(DDRB,6);
+		for(j=0;j<30000;j++);
+		set(PORTC,6);
+		set(PORTC,7);
+		set(DDRB,5);
+		set(DDRB,6);
+	}
+	
+	else	//ROTATE!
+	{
+
+		if(quad==3 || quad==4)    //Below the X axis
+		{
+			//For bot angle between -angle_to_goal and +angle_to_goal
+			if(destangle<location[2] && 180+destangle>location[2])
+			{
+				clear(DDRB,5);  //Turn off motor
+				clear(DDRB,6);
+				for(j=0;j<30000;j++); //Pause for a certain amount of time
+				set(PORTC,6);   //Clockwise rotation
+				clear(PORTC,7);
+				set(DDRB,5);   //Turn on motors
+				set(DDRB,6);
+			}
+			else	//For bot angle greater than angle_to_goal
+			{	clear(DDRB,5);
+				clear(DDRB,6);
+				for(j=0;j<30000;j++);
+				clear(PORTC,6); // Counter-clockwise rotation
+				set(PORTC,7);
+				set(DDRB,5);
+				set(DDRB,6);
+			}
+		}
+		if(quad==1 || quad==2) //Above the X-axis
+		{
+			if(-180+destangle<location[2] && destangle>location[2])//Counter-Clockwise rotation
+			{
+				clear(DDRB,5);
+				clear(DDRB,6);
+				for(j=0;j<30000;j++);
+				clear(PORTC,6);
+				set(PORTC,7);
+				set(DDRB,5);
+				set(DDRB,6);
+			}
+			else	//Anti-Clockwise rotation
+			{
+				clear(DDRB,5);
+				clear(DDRB,6);
+				for(j=0;j<30000;j++);
+				set(PORTC,6);
+				clear(PORTC,7);
+				set(DDRB,5);
+				set(DDRB,6);
+			}
+		}
+	}
+	OCR1A = 150;
+	OCR1B = 150;
 }
