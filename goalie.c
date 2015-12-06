@@ -245,28 +245,7 @@ void goal_block(int*locate,int direction)
 	int j;
 	if(direction==CENTER)
 	{
-		if(abs(locate[1])<=10)	
-			motor_stop();
-		else if(locate[1]>10)
-		{
-			clear(DDRB,5);
-			clear(DDRB,6);
-			for(j=0;j<30000;j++);
-			set(PORTC,6);
-			set(PORTC,7);
-			set(DDRB,5);
-			set(DDRB,6);
-		}
-		else if(locate[1]<10)
-		{
-			clear(DDRB,5);
-			clear(DDRB,6);
-			for(j=0;j<30000;j++);
-			clear(PORTC,6);
-			clear(PORTC,7);
-			set(DDRB,5);
-			set(DDRB,6);
-		}
+		motor_stop();
 		
 	}
 	if((direction == RIGHT)&&(locate[3]==2 || locate[3]==3))
