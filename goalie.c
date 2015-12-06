@@ -71,7 +71,6 @@ int main()
 {
 	 int locate[4];
 	 int blue_flag = 0;
-	 int blobs[12];
 	 m_red(ON); //If only red is on, still initializing
 	 m_wait(50); //Wait to be sure no hands are above the mWii
 	 int state = COMM;
@@ -86,7 +85,7 @@ int main()
 	 }
 
 	 init();
-	 
+	 m_red(OFF);	 
 	 while(1)
 	 {
 		if(timer0_flag==1)
@@ -243,12 +242,12 @@ int main()
 void goal_block(int*locate,int direction)
 {
 	int j;
-	if(direction==CENTER)
+	if(direction==CENTER)		//The puck is straight ahead
 	{
 		motor_stop();
 		
 	}
-	if((direction == RIGHT)&&(locate[3]==2 || locate[3]==3))
+	if((direction == RIGHT)&&(locate[3]==2 || locate[3]==3))		//The puck is towards the right
 	{
 		if(locate[1]>=-50)
 			motor_stop();
@@ -278,7 +277,7 @@ void goal_block(int*locate,int direction)
 			set(DDRB,6);
 		}
 	}
-	if((direction == LEFT)&&(locate[3]==2 || locate[3]==3))
+	if((direction == LEFT)&&(locate[3]==2 || locate[3]==3))	//The puck is towards left
 	{
 		if(locate[1]>=50)
 		motor_stop();
