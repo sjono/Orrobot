@@ -10,6 +10,7 @@
 // 12/04 4:30p JS - made ADC_init(), case/switch for buffer read, **created puck_detect() **TEST!!!
 //                      **updated goal_calibrate to use internal quadrant** TEST!!
 // 12/05 10am JS - #define RFOVERRIDE AND OVERSTATE
+// 12/05 5pm JS - fixed puck detect
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -28,7 +29,7 @@ void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length a
 
 #define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
-#define OVERSTATE GO2GOAL  
+#define OVERSTATE OFF  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
 #define USB_DEBUG ON
 #define packet_length 10
@@ -72,8 +73,7 @@ int main()
     quadrant = goalcalibrate(locate, goal_locate);	//Calibrate goal location  
     
         
-    if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
-        state = RFOVERRIDE;} //Override state >> SEARCH1
+
     while(1)
     {
         //m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
@@ -97,28 +97,17 @@ int main()
                     case COMM:
                         state = COMM; break;
                     case PLAY:
-                        state = SEARCH1; break;
+                        state = SEESPUCK; break;
                     case PAUSE:
                         state = PAUSE; break;}           
             }
             
+            if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
+                state = RFOVERRIDE;} //Override state >> SEARCH1
+            
             //Send quadrant location to the 7 Segment to display
-            if (locate[0] > 0 && locate[1] > 0){
-                locate[3] = 1;}
-            if (locate[0] < 0 && locate[1] > 0){
-                locate[3] = 2;}
-            if (locate[0] < 0 && locate[1] < 0){
-                locate[3] = 3;}
-            if (locate[0] > 0 && locate[1] < 0){
-                locate[3] = 4;}
              sevensegdispl(locate[3]);
             
-            //Look at read value to determine if correct state
-            
-            
-            //add many more if statements here!
-            if(abs(goal_locate[0]-locate[1])<=20 && abs(goal_locate[1]-locate[1])<=20){
-                state = COMM;} //Stop moving when bot reaches the goal
             
             //~~Rerun goal calibration~~~~~~
             if (j < 50){ //Set up counter to reset every X milliseconds
@@ -144,7 +133,7 @@ int main()
                 m_usb_tx_string("Difference between angles is: "); 
                 m_usb_tx_int(goal_locate[2]-locate[2]); m_usb_tx_string(" \n");
 
-                m_usb_tx_string("IR Readings:   (D6  F0  F7  F1  F4  F5  D7  F6) \n"); 
+                m_usb_tx_string("IR Readings:   (F5  F6  D7  D6  F0  F7  F1  F4) \n"); 
                 m_usb_tx_string("ADC reading is: ("); 
                 for (i=0; i < 8; i++){ //Print out all 8 ADC readings
                     m_usb_tx_int(ADC_read[i]); m_usb_tx_string("  "); }
@@ -153,18 +142,19 @@ int main()
 
                 
                 if (blue_flag){ //Called only in COMM mode
-                    if (check(PORTD,4)){ //Toggle red LED (D4)
-                    clear(PORTD,4);}
-                    else set(PORTD,4);
                     if (check(PORTD,5)){ //Toggle blue LED (D5)
                     clear(PORTD,5);}
                     else set(PORTD,5);
-                    blue_flag = 0;} //Toggle BLUE led to indicate COMM mode
+                    blue_flag++;} //Toggle BLUE led to indicate COMM mode
+                if (blue_flag > 6){ //Turn off Blue LED after it blinks three times
+                        blue_flag = 0;}
             } //~~END Goal calibration re-run
             
         } //~~~~~~END TIMER 0 LOOP~~~~~~~~~~~~~~
         
         //~~~~~PUCK DETECTION CODE~~~~~~~~~~~~~
+         //NEW2 IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **On Attacker, F6 is not reading
+        //NEW2 ANGLES: (0 +45 +90 +135 +180 -135 -135 -90 -45)
         puckangle = puck_detect(ADC_read, ADC_track, puckangle);
         
         //~~~SWITCH STATEMENT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -183,7 +173,7 @@ int main()
             case SEARCH1:       //Go to the center of the rink in search of the puck
                 centerpt[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
                 go2goal(locate,centerpt[2]); //Start moving toward the center to find the puck
-                if (ADC_track[1]>100){
+                if (ADC_track[1]>100){  //If largest ADC value is above 100, go find the puck
                         state = SEESPUCK;}
                 break;
                 
@@ -353,8 +343,8 @@ void motor_run(int*location, int*goallocation)
                 }
 			}
 	}
-	OCR1A = 180;
-    OCR1B = 180;
+	OCR1A = 150;
+    OCR1B = 150;
 }
 
 void send(int x, int y, int z) //

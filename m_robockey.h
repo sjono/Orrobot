@@ -7,6 +7,7 @@
 // Update: 12/01 JS - added code to throw out readings of 1023
 // Update: 12/03 JS - updated #define SEESPUCK, added F0 - D6 read function, go2puck, motor_stop()
 // Update: 12/05 JS - added puck_detect() function, removed go2goal() - needs rewriting
+// Update: 12/05 5p JS - changed ADC reading order
 // -----------------------------------------------------------------------------
 
 #include "m_usb.h"
@@ -251,13 +252,13 @@ char localize(int* locate)
 
     //Calculate which quadrant the bot is in and store this in locate[3]
     if (locate[0] > 0 && locate[1] > 0){
-                locate[3] = 1;}
-            if (locate[0] < 0 && locate[1] > 0){
-                locate[3] = 2;}
-            if (locate[0] < 0 && locate[1] < 0){
-                locate[3] = 3;}
-            if (locate[0] > 0 && locate[1] < 0){
-                locate[3] = 4;}
+        locate[3] = 1;}
+    if (locate[0] < 0 && locate[1] > 0){
+        locate[3] = 2;}
+    if (locate[0] < 0 && locate[1] < 0){
+        locate[3] = 3;}
+    if (locate[0] > 0 && locate[1] < 0){
+        locate[3] = 4;}
     
     return 1;    //Return 1 to say that localization X, Y and angle have been stored
 }
@@ -502,8 +503,19 @@ void motor_stop()
 }
 
 int puck_detect(int* ADC_read, int* ADC_track, int puckangle)
-//IR Readings:   (D6  F0  F7  F1  F4  F5  D7  F6) **On Attacker, F6 is not reading
-//ANGLES: (0deg +45 +45 +90 +135 -135 -90 -45) 
+//NEW2 IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **On Attacker, F6 is not reading
+//NEW1 ANGLES: (0 +45 +90 +135 +180 -135 -135 -90 -45)
+
+    
+//NEW1 IR Readings:   (D6  F0  F7  F1  F5  F6  F4  D7) **On Attacker, F6 is not reading
+//NEW1 ANGLES: (0deg -45 +45 -90 -135 180 135 90 45) 
+ 
+//OLD IR Readings:   (D6  F0  F7  F1  F4  F5  D7  F6) **On Attacker, F6 is not reading
+//OLD ANGLES: (0deg +45 +45 +90 +135 -135 -90 -45) 
+    
+    //maybe (D6 F0 F7 F1 F4 F5 D7 F6)
+    //     (180 -135 -135 -90 -45 45 90 135)
+    // MEANS (
 {
     int i;
     
@@ -518,28 +530,28 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle)
                 switch(ADC_track[0])
                 {
                 case 1:            //Set ADC to read from F0
-                F0_read();        
+                F6_read();        
                 break;
                 case 2:            //Set ADC to read from F7
-                F7_read();
-                break;
-                case 3:            //Set ADC to read from F1
-                F1_read();
-                break;
-                case 4:            //Set ADC to read from F4
-                F4_read();
-                break;
-                case 5:            //Set ADC to read from F5
-                F5_read();
-                break;
-                case 6:            //Set ADC to read from D7
                 D7_read();
                 break;
+                case 3:            //Set ADC to read from F1
+                D6_read();
+                break;
+                case 4:            //Set ADC to read from F4
+                F0_read();
+                break;
+                case 5:            //Set ADC to read from F5
+                F7_read();
+                break;
+                case 6:            //Set ADC to read from D7
+                F1_read();
+                break;
                 case 7:            //Set ADC to read from F6
-                F6_read();
+                F4_read();
                 break;
                 case 8:            //Set ADC to read from D6
-                D6_read();
+                F5_read();
                 break;
                 }
                 set(ADCSRA,ADEN);       //Enable conversions
@@ -625,7 +637,7 @@ void go2goal(int*location, int destangle)
 	else	//ROTATE!
 	{
 
-		if(quad==3 || quad==4)    //Below the X axis
+		if(quad==3 || quad==4)    //Below the X axis, destangle will be positive
 		{
 			//For bot angle between -angle_to_goal and +angle_to_goal
 			if(destangle<location[2] && 180+destangle>location[2])
@@ -648,7 +660,7 @@ void go2goal(int*location, int destangle)
 				set(DDRB,6);
 			}
 		}
-		if(quad==1 || quad==2) //Above the X-axis
+		if(quad==1 || quad==2) //Above the X-axis, destangle will be negative
 		{
 			if(-180+destangle<location[2] && destangle>location[2])//Counter-Clockwise rotation
 			{
