@@ -470,9 +470,9 @@ void go2puck(int puckangle)
 			clear(DDRB,6);
 			for(j=0;j<30000;j++);
             
-			//m_usb_tx_string("CLOCKWISE")
+			//m_usb_tx_string("COUNTER_CLOCKWISE")
 			//m_usb_tx_string("\n")
-			clear(PORTC,6); // clockwise rotation
+			clear(PORTC,6); // Counter-clockwise rotation
 			set(PORTC,7);
 			set(DDRB,5);
 			set(DDRB,6);
@@ -483,9 +483,9 @@ void go2puck(int puckangle)
 			clear(DDRB,6);
 			for(j=0;j<30000;j++); 
             
-			//m_usb_tx_string("COUNTER_CLOCKWISE")
+			//m_usb_tx_string("CLOCKWISE")
 			//m_usb_tx_string("\n")
-			set(PORTC,6);   //Counter Clockwise rotation
+			set(PORTC,6);   //Clockwise rotation
 			clear(PORTC,7);
 			set(DDRB,5);   //Turn on motors
 			set(DDRB,6);	
@@ -620,14 +620,8 @@ void go2goal(int*location, int destangle)
 { //Looks at the location with respect to the goal location and rotates if necessary
 	int angle_diff;
 	int j;
-    angle_diff = destangle-location[2];
+	angle_diff = destangle-location[2];
 	int quad = location[3];
-    int maxangle = destangle+180; 
-    int minangle = destangle-180;
-	if (maxangle > 180){
-            maxangle = maxangle-360;}
-    if (minangle < -180){
-            minangle = minangle+360;}
 	if(abs(angle_diff)<=20||abs(angle_diff)>=340)	//goes straight if angle difference is +/- 20 deg
 	{
 
@@ -644,17 +638,14 @@ void go2goal(int*location, int destangle)
 	{
 
 		if(quad==3 || quad==4)    //Below the X axis, destangle will be positive
-                    //12/07 Troubleshooting in QIV: always goes CLOCKWISE
-                //loc[2] is -170, destangle is 170: Max angle = -10]
-                //loc[2] is 160, destangle is 170 >> Max angle = -10
 		{
 			//For bot angle between -angle_to_goal and +angle_to_goal
-			if(destangle<location[2] && maxangle>location[2])
+			if(destangle<location[2] && 180+destangle>location[2])
 			{
 				clear(DDRB,5);  //Turn off motor
 				clear(DDRB,6);
 				for(j=0;j<30000;j++); //Pause for a certain amount of time
-				set(PORTC,6);   //Counterclockwise rotation
+				set(PORTC,6);   //Clockwise rotation
 				clear(PORTC,7);
 				set(DDRB,5);   //Turn on motors
 				set(DDRB,6);
@@ -663,7 +654,7 @@ void go2goal(int*location, int destangle)
 			{	clear(DDRB,5);
 				clear(DDRB,6);
 				for(j=0;j<30000;j++);
-				clear(PORTC,6); // clockwise rotation
+				clear(PORTC,6); // Counter-clockwise rotation
 				set(PORTC,7);
 				set(DDRB,5);
 				set(DDRB,6);
@@ -671,7 +662,7 @@ void go2goal(int*location, int destangle)
 		}
 		if(quad==1 || quad==2) //Above the X-axis, destangle will be negative
 		{
-			if(minangle<location[2] && destangle>location[2])//Clockwise rotation
+			if(-180+destangle<location[2] && destangle>location[2])//Counter-Clockwise rotation
 			{
 				clear(DDRB,5);
 				clear(DDRB,6);
@@ -681,7 +672,7 @@ void go2goal(int*location, int destangle)
 				set(DDRB,5);
 				set(DDRB,6);
 			}
-			else	//Counter-Clockwise rotation (anti-clockwise)
+			else	//Anti-Clockwise rotation
 			{
 				clear(DDRB,5);
 				clear(DDRB,6);
