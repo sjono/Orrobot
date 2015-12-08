@@ -15,6 +15,7 @@
 // 12/08 12pm JS - changing motor_run function TEST
 // 12/08 1:30pm JS - turned off motor_run in GO2GOAL for testing (why is angle_diff chaotic?!)
 // 12/08 3pm JS - updated to motor_run : -180 < angle_diff < 180
+// 12/08 4:30 JS - working on debounced B7 switch input, fixed BLUE light to blink during COMM
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -32,9 +33,9 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle);
 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
 
 
-#define RFOVERRIDE OFF
+#define RFOVERRIDE COMM
                 // override RF listening mode to start in desired state
-#define OVERSTATE GO2GOAL  
+#define OVERSTATE OFF  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
 #define USB_DEBUG ON
 #define packet_length 10
@@ -45,8 +46,7 @@ volatile char timer0_flag=0;
 volatile char front_switch = 0;
 volatile char back_switch = 0;
 volatile char read_flag=0;      //Triggered whenever RF reads something
-volatile char frontswitch=0;    //Front switch flag
-volatile char backswitch=0;     //Back switch flag
+volatile int frontswitch=0;    //Front switch flag
 int TXaddress = 0x4F;
 int RXaddress = 0x4C;
 unsigned char buffer[packet_length];
@@ -66,7 +66,7 @@ int main()
     int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
     int goal_locate[3]; //Stores X, Y, angle to the goal
     int centerpt[3] = {0, 0, 0};     //Stores X, Y, angle to center point
-    int state = COMM;
+    int state = PAUSE;
     int blue_flag = 0;
     int ADC_read[8];    //Stores values from the ADC readings
     int ADC_track[3] = {0,0,0}; //[0] is adc counter, [1] is maximum ADC reading , [2] is ADC max location
@@ -98,6 +98,16 @@ int main()
 			
             //send(locate[0], locate[1], locate[2]); //Sends location data to another M2
             
+//~~~~~~~~TESTING CODE INSIDE TIMER0~~~~~
+            if (!check(PINB,7))
+            {
+                frontswitch+=1;
+                m_usb_tx_string("SWITCH IS PRESSED, COUNT IS: \n"); m_usb_tx_int(frontswitch);   
+                m_usb_tx_string("\n");   
+            }
+            else frontswitch = 0;
+
+//~~~~~~~~END TESTING CODE INSIDE TIMER0~~~~~
             if (read_flag)  //If RF signal is received, read to buffer
             {
                 m_rf_read(buffer, packet_length); //Read from RF
@@ -135,31 +145,18 @@ int main()
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
                 print_stuff(locate, goal_locate, ADC_read, puckangle);
                 m_usb_tx_string("STATE IS "); m_usb_tx_int(state); m_usb_tx_string("\n");   
-                
-//~~~~~~~~~~~~FOR TESTING MOTOR RUN OVERRIDE~~~~~~~~~~~~
-                motor_run(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
-//~~~~~~~~~^^^$FOR TESTING MOTOR RUN OVERRIDE$^^^^^^^^^~~~~~~~
-                
+                                
                 if (blue_flag){ //Called only in COMM mode
-                    if (check(PORTD,5)){ //Toggle blue LED (D5)
-                    clear(PORTD,5);}
-                    else set(PORTD,5);
+                    if (check(PORTD,4)){ //Toggle blue LED (D5)
+                    clear(PORTD,4);}
+                    else set(PORTD,4);
                     blue_flag++;} //Toggle BLUE led to indicate COMM mode
-                if (blue_flag > 6){ //Turn off Blue LED after it blinks three times
-                        blue_flag = 0;
-                /*if (check(PORTB,4)){ //Fires the solenoid every other cycle ~~TESTING~~~~
+            /*  //Fires the solenoid every other cycle ~~TESTING~~~~
+                if (check(PORTB,4)){ 
                     clear(PORTB,4);}
                 else set(PORTB,4);*/
-                  
-                if (frontswitch > 5)
-                {
-                    m_usb_tx_string("FRONT SWITCH IS PRESSED \n");   
-                    frontswitch = 0;
-                }
-                
-                
-                }
-            } //~~END Goal calibration re-run
+                   
+            }   //~~END Goal calibration re-run
             
         } //~~~~~~END TIMER 0 LOOP~~~~~~~~~~~~~~
         
@@ -173,6 +170,8 @@ int main()
             case COMM:  //Listen for signal sent by the game
                 motor_stop();
                 blue_flag = 1;
+                if (blue_flag == 6){
+                    state = PAUSE;}
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
                 
@@ -202,7 +201,7 @@ int main()
                 sevensegdispl(9); //Number 9 means GO!
                 break;
             case GO2GOAL: //Head to the goal
-                //motor_run(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
+                motor_run(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
                 sevensegdispl(9); //Number 9 means GO!
                 //Going R? Move toward R goal, small turn radii
                 //Going L? Move toward R goal, small turn radii
@@ -242,16 +241,12 @@ void init()
     
     set(DDRB,4); //Set pin for Solenoid 1 & 2 (front facing)
     clear(PORTB,4); //Keep Solenoid pin LOW
+        
+    clear(DDRB,7); //Set pin for back switch (B7 = PCINT7)
+    set(PORTB,7); //Enable pullup resistor on E6
     
-    clear(DDRE,6);//set pin for front switch (E6 = INT6)
-    set(PORTE,6); //Enable pullup resistor on E6
-    
-    set(EICRB,ISC61); //Set EICRA for INT6
-    clear(EICRB,ISC60); //1 0 triggers on falling
-
-    //set pin for back switch (B7 = PCINT7)
-    set(PCICR,PCIE0);
-    set(PCMSK0,PCINT7);
+    //set(PCICR,PCIE0); //
+    //set(PCMSK0,PCINT7);
     
     ADC_init(); //disable JTAG, set up ADC, disable digital input for D6-D7, F0-F7
     
@@ -352,14 +347,6 @@ ISR(INT2_vect)
     read_flag=1;
 }
 
-ISR(INT6_vect)
-{
-    frontswitch++;
-}
-ISR(PCINT0_vect) //interrupt for B7
-{
-    backswitch++;
-}
 
 void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle)
 {
