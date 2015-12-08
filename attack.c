@@ -11,8 +11,6 @@
 //                      **updated goal_calibrate to use internal quadrant** TEST!!
 // 12/05 10am JS - #define RFOVERRIDE AND OVERSTATE
 // 12/05 5pm JS - fixed puck detect
-// 12/07 2:30 JS - starting with a very very simple version
-// 12/07 5:30 JS - added to robocked/go2goal "maxangle" and "minangle" TEST AGAIN!
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -22,13 +20,14 @@
 
 void init();
 void ADC_init();
+void motor_run(int* location, int* goallocation);
+//Runs the bot toward the goal location based upon the angle
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
-void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle);
-//~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
 
 
-#define RFOVERRIDE GO2GOAL
+
+#define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
 #define OVERSTATE OFF  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
@@ -120,8 +119,26 @@ int main()
                 goal_locate[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
                 //Calibrate goal location to be positive angle
 			    
-                print_stuff(locate, goal_locate, ADC_read, puckangle); //~~Display Readings~~~~~~~~~
-               
+                //~~Display Readings~~~~~~~~~
+                m_usb_tx_string("Present Loc (X,Y, theta): ("); 
+                m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
+                m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
+                m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
+                m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
+                m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
+                m_usb_tx_string(") \n"); m_usb_tx_string("Present angle is: "); 
+                m_usb_tx_int(locate[2]); m_usb_tx_string("\n");
+                m_usb_tx_string("Goal angle is: "); 
+                m_usb_tx_int(goal_locate[2]);m_usb_tx_string("\n");
+                m_usb_tx_string("Difference between angles is: "); 
+                m_usb_tx_int(goal_locate[2]-locate[2]); m_usb_tx_string(" \n");
+
+                m_usb_tx_string("IR Readings:   (F5  F6  D7  D6  F0  F7  F1  F4) \n"); 
+                m_usb_tx_string("ADC reading is: ("); 
+                for (i=0; i < 8; i++){ //Print out all 8 ADC readings
+                    m_usb_tx_int(ADC_read[i]); m_usb_tx_string("  "); }
+                m_usb_tx_string(")\n");
+                m_usb_tx_string("Puck angle calc is:  ");  m_usb_tx_int(puckangle); m_usb_tx_string("\n");
 
                 
                 if (blue_flag){ //Called only in COMM mode
@@ -152,39 +169,33 @@ int main()
                 motor_stop();
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
-            
-            case SEESPUCK:                 //Go directly to the puck
-                go2puck(puckangle);
-                /*if (ADC_read[0]>980){     //If center ADC reads HIGHEST VALUE, head to the goal
-                        state=GO2GOAL;}
-                if(ADC_track[1]<20){        //If ADC readings drop too low, search again
-                        state=SEARCH1;}*/
-                break;
                 
-            case GO2GOAL: //Head to the goal
-                go2goal(locate,goal_locate[2]);
-                sevensegdispl(9); //Number 9 means GO!
-                //Going R? Move toward R goal, small turn radii
-                //Going L? Move toward R goal, small turn radii
-                break;
-                
-            /* SIMPLIFY FOR NOW
             case SEARCH1:       //Go to the center of the rink in search of the puck
                 centerpt[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
                 go2goal(locate,centerpt[2]); //Start moving toward the center to find the puck
                 if (ADC_track[1]>100){  //If largest ADC value is above 100, go find the puck
                         state = SEESPUCK;}
                 break;
-                        
+                
+            case SEESPUCK:                 //Go directly to the puck
+                go2puck(puckangle);
+                /*if (ADC_read[0]>980){     //If center ADC reads HIGHEST VALUE, head to the goal
+                        state=GO2GOAL;}*/
+                if(ADC_track[1]<20){        //If ADC readings drop too low, search again
+                        state=SEARCH1;}
+                break;            
             case PUCK2GOAL:
                 if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck
                     state = SEESPUCK;}
                 go2goal(locate,goal_locate[2]);
                 sevensegdispl(9); //Number 9 means GO!
                 break;
-            
-                */ //END SIMPLIFATION
-                
+            case GO2GOAL: //Head to the goal
+                go2goal(locate,goal_locate[2]);
+                sevensegdispl(9); //Number 9 means GO!
+                //Going R? Move toward R goal, small turn radii
+                //Going L? Move toward R goal, small turn radii
+                break;
             default:
                     // search mode
                 break;   
@@ -253,27 +264,102 @@ void ADC_init()
     //~~ADC NOW INITIALIZED
 }
 
-//~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
-void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle)
-{
-    int i;
-    m_usb_tx_string("Present Loc (X,Y, theta): ("); 
-    m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
-    m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
-    m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
-    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
-    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
-    m_usb_tx_string(") \n"); m_usb_tx_string("Present angle is: "); 
-    m_usb_tx_int(locate[2]); m_usb_tx_string("\n");
-    m_usb_tx_string("Goal angle is: "); 
-    m_usb_tx_int(goal_locate[2]);m_usb_tx_string("\n");
-    m_usb_tx_string("Difference between angles is: "); 
-    m_usb_tx_int(goal_locate[2]-locate[2]); m_usb_tx_string(" \n");
+//****************MOTOR RUN FUNCTION********************************//
+void motor_run(int*location, int*goallocation)
+{ //Looks at the location with respect to the goal location and rotates if necesary
+    int angle_diff;
+    int j;
+    angle_diff = goallocation[2]-location[2];
+    int quad = location[3];
+   if(abs(angle_diff)<=20||abs(angle_diff)>=340)	//needs to rotate if error of 20 deg
+	{
 
-    m_usb_tx_string("IR Readings:   (F5  F6  D7  D6  F0  F7  F1  F4) \n"); 
-    m_usb_tx_string("ADC reading is: ("); 
-    for (i=0; i < 8; i++){ //Print out all 8 ADC readings
-        m_usb_tx_int(ADC_read[i]); m_usb_tx_string("  "); }
-    m_usb_tx_string(")\n");
-    m_usb_tx_string("Puck angle calc is:  ");  m_usb_tx_int(puckangle); m_usb_tx_string("\n");
+			clear(DDRB,5);
+			clear(DDRB,6);
+			for(j=0;j<30000;j++);
+			//m_usb_tx_string("GO STRAIGHT");
+            //m_usb_tx_string("\n");
+			set(PORTC,6);
+            set(PORTC,7);  
+			set(DDRB,5);
+			set(DDRB,6);
+    }
+    
+	else	//ROTATE!
+	{	
+
+            if(quad==3 || quad==4)    //Below the X axis
+            {
+                //For bot angle between -angle_to_goal and +angle_to_goal
+                if(goallocation[2]<location[2] && 180+goallocation[2]>location[2])
+                {
+                    clear(DDRB,5);  //Turn off motor
+                    clear(DDRB,6);
+                    for(j=0;j<30000;j++); //Pause for a certain amount of time
+					//m_usb_tx_string("CLOCKWISE");
+                    //m_usb_tx_string("\n");
+					set(PORTC,6);   //Clockwise rotation
+                    clear(PORTC,7);
+					set(DDRB,5);   //Turn on motors
+					set(DDRB,6);
+                }
+                else	//For bot angle greater than angle_to_goal
+                {	clear(DDRB,5);
+	                clear(DDRB,6);
+	                for(j=0;j<30000;j++);
+                    //m_usb_tx_string("COUNTER-CLOCKWISE");
+                    //m_usb_tx_string("\n");
+					clear(PORTC,6); // Counter-clockwise rotation
+                    set(PORTC,7);	
+					set(DDRB,5);
+					set(DDRB,6);
+                }
+			}
+            if(quad==1 || quad==2) //Above the X-axis
+            {
+                if(-180+goallocation[2]<location[2] && goallocation[2]>location[2])//Counter-Clockwise rotation
+               {
+					clear(DDRB,5);
+	                clear(DDRB,6);
+                    for(j=0;j<30000;j++);
+                    //m_usb_tx_string("COUNTER-CLOCKWISE");
+                    //m_usb_tx_string("\n");
+					clear(PORTC,6);
+                    set(PORTC,7);
+                    set(DDRB,5);
+                    set(DDRB,6);
+                }
+                else	//Anti-Clockwise rotation
+                {	
+	                clear(DDRB,5);
+	                clear(DDRB,6);
+                    for(j=0;j<30000;j++);
+					//m_usb_tx_string("CLOCKWISE");
+					//m_usb_tx_string("\n");
+                    set(PORTC,6);
+                    clear(PORTC,7);	
+                    set(DDRB,5);
+                    set(DDRB,6);
+                }
+			}
+	}
+	OCR1A = 150;
+    OCR1B = 150;
 }
+
+void send(int x, int y, int z) //
+{
+    char buffer_out[10] = {x, y, z, x, y, z, x, y, z, z};
+    m_rf_send(TXaddress, buffer_out, packet_length);
+}
+
+ISR(TIMER0_COMPA_vect)
+{
+	timer0_flag=1;
+}
+
+ISR(INT2_vect)
+{
+    read_flag=1;
+}
+
