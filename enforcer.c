@@ -1,21 +1,8 @@
 // -----------------------------------------------------------------------------
-// Orrobot Attacker Game-on
+// Orrobot Enforcer
 // Version: 0.1
 // Author: Jono / Aditya
-// Date: Dec 03 2015
-// 12/01 JS - Updated to use int for location and goallocation, not float
-// 12/01 5pm JS - Updated to clean up (needs testing, especially RF)
-// 12/01 9pm JS - added Red and Blue LED's for COMM test
-// 12/03 10pm JS - added puck detection
-// 12/04 4:30p JS - made ADC_init(), case/switch for buffer read, **created puck_detect() **TEST!!!
-//                      **updated goal_calibrate to use internal quadrant** TEST!!
-// 12/05 10am JS - #define RFOVERRIDE AND OVERSTATE
-// 12/05 5pm JS - fixed puck detect
-// 12/08 9a JS - added code to initialize and test solenoids and switches
-// 12/08 12pm JS - changing motor_run function TEST
-// 12/08 1:30pm JS - turned off motor_run in GO2GOAL for testing (why is angle_diff chaotic?!)
-// 12/08 3pm JS - updated to motor_run : -180 < angle_diff < 180
-// 12/08 4:30 JS - working on debounced B7 switch input, fixed BLUE light to blink during COMM
+// Date: Dec 08 2015
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -47,8 +34,8 @@ volatile char front_switch = 0;
 volatile char back_switch = 0;
 volatile char read_flag=0;      //Triggered whenever RF reads something
 volatile int frontswitch=0;    //Front switch flag
-int TXaddress = 0x4F;
-int RXaddress = 0x4C;
+int TXaddress = 0x4E;
+int RXaddress = 0x4D;
 unsigned char buffer[packet_length];
 
 //     ^ quad guide:
@@ -80,34 +67,17 @@ int main()
         localize(locate);}
     quadrant = goalcalibrate(locate, goal_locate);	//Calibrate goal location  
     
-        
-
+    if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
+            state = RFOVERRIDE;} //Override state during initialization (not waiting for wifi signal)
+    
     while(1)
     {
-        //m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
         if(timer0_flag==1)
         {
             timer0_flag=0; //Reset timer flag
             m_green(TOGGLE);    //Toggle green as timer is run
             localize(locate);//Run localize to determine the bot's location
-            //locate[2] -= 90;
-            /*while (locate[2] > 180){
-                locate[2]-=360;}
-            while (locate[2] < -180){
-                locate[2]+=360;}*/
-			
-            //send(locate[0], locate[1], locate[2]); //Sends location data to another M2
-            
-//~~~~~~~~TESTING CODE INSIDE TIMER0~~~~~
-            if (!check(PINB,7))
-            {
-                frontswitch+=1;
-                m_usb_tx_string("SWITCH IS PRESSED, COUNT IS: \n"); m_usb_tx_int(frontswitch);   
-                m_usb_tx_string("\n");   
-            }
-            else frontswitch = 0;
-
-//~~~~~~~~END TESTING CODE INSIDE TIMER0~~~~~
+ 			
             if (read_flag)  //If RF signal is received, read to buffer
             {
                 m_rf_read(buffer, packet_length); //Read from RF
@@ -124,14 +94,7 @@ int main()
                     case PAUSE:
                         state = PAUSE; break;}           
             }
-            
-            if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
-                state = RFOVERRIDE;} //Override state >> SEARCH1
-            
-            //Send quadrant location to the 7 Segment to display
-             sevensegdispl(locate[3]);
-            
-            
+
             //~~Rerun goal calibration~~~~~~
             if (j < 50){ //Set up counter to reset every X milliseconds
                 j++;}
@@ -143,25 +106,41 @@ int main()
                 //Calibrate goal location to be positive angle
 			    
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
-                print_stuff(locate, goal_locate, ADC_read, puckangle);
-                               
+                print_stuff(locate, goal_locate, ADC_read, puckangle, state);
+                                
                 if (blue_flag){ //Called only in COMM mode
                     if (check(PORTD,4)){ //Toggle blue LED (D5)
                     clear(PORTD,4);}
                     else set(PORTD,4);
                     blue_flag++;} //Toggle BLUE led to indicate COMM mode
-            /*  //Fires the solenoid every other cycle ~~TESTING~~~~
-                if (check(PORTB,4)){ 
-                    clear(PORTB,4);}
-                else set(PORTB,4);*/
                    
             }   //~~END Goal calibration re-run
+
+//~~~~~~~~TESTING CODE INSIDE TIMER0~~~~~~~~~~~~~~~~~~~~~~
+            if (!check(PINB,7))
+            {
+                frontswitch+=1;
+                m_usb_tx_string("SWITCH IS PRESSED, COUNT IS: \n"); m_usb_tx_int(frontswitch);   
+                m_usb_tx_string("\n");   
+            }
+            else frontswitch = 0;
+            
+        /*  //Fires the solenoid every other cycle ~~TESTING~~~~
+            if (j == 50)
+            {
+                if (check(PORTB,4)){ 
+                    clear(PORTB,4);}
+                else set(PORTB,4);
+            }   */
+
+//~~~~~~~~END TESTING CODE INSIDE TIMER0~~~~~
+            
             
         } //~~~~~~END TIMER 0 LOOP~~~~~~~~~~~~~~
         
         //~~~~~PUCK DETECTION CODE~~~~~~~~~~~~~
-         //NEW2 IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **On Attacker, F6 is not reading
-        //NEW2 ANGLES: (0 +45 +90 +135 +180 -135 -135 -90 -45)
+         //IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **To be debugged on Enforcer
+        //ANGLES: (0 +45 +90 +135 +180 -135 -135 -90 -45)
         puckangle = puck_detect(ADC_read, ADC_track, puckangle);
         
         //~~~SWITCH STATEMENT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -378,6 +357,7 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
     m_usb_tx_string("Quadrant is:  ");  m_usb_tx_int(locate[3]); m_usb_tx_string("\n");
     
     m_usb_tx_string("STATE IS "); m_usb_tx_int(state); m_usb_tx_string("\n");   
+    
 }
 
 
