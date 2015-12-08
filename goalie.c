@@ -230,8 +230,8 @@ int main()
 			
 			case DEFEND:		//Sees the puck and defend the goal to the side of the puck
 			goal_block(locate,direction);
-			if(ADC_max>500)
-				
+			//if(ADC_max>500)
+				//sending distress signal to enforcer
 			sevensegdispl(6);
 			break;
 		}
