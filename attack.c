@@ -24,6 +24,8 @@ void motor_run(int* location, int* goallocation);
 //Runs the bot toward the goal location based upon the angle
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
+void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle);
+//~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
 
 
 
@@ -40,6 +42,8 @@ volatile char timer0_flag=0;
 volatile char front_switch = 0;
 volatile char back_switch = 0;
 volatile char read_flag=0;      //Triggered whenever RF reads something
+volatile char frontswitch=0;    //Front switch flag
+volatile char backswitch=0;     //Back switch flag
 int TXaddress = 0x4F;
 int RXaddress = 0x4C;
 unsigned char buffer[packet_length];
@@ -119,27 +123,8 @@ int main()
                 goal_locate[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
                 //Calibrate goal location to be positive angle
 			    
-                //~~Display Readings~~~~~~~~~
-                m_usb_tx_string("Present Loc (X,Y, theta): ("); 
-                m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
-                m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
-                m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
-                m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
-                m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
-                m_usb_tx_string(") \n"); m_usb_tx_string("Present angle is: "); 
-                m_usb_tx_int(locate[2]); m_usb_tx_string("\n");
-                m_usb_tx_string("Goal angle is: "); 
-                m_usb_tx_int(goal_locate[2]);m_usb_tx_string("\n");
-                m_usb_tx_string("Difference between angles is: "); 
-                m_usb_tx_int(goal_locate[2]-locate[2]); m_usb_tx_string(" \n");
-
-                m_usb_tx_string("IR Readings:   (F5  F6  D7  D6  F0  F7  F1  F4) \n"); 
-                m_usb_tx_string("ADC reading is: ("); 
-                for (i=0; i < 8; i++){ //Print out all 8 ADC readings
-                    m_usb_tx_int(ADC_read[i]); m_usb_tx_string("  "); }
-                m_usb_tx_string(")\n");
-                m_usb_tx_string("Puck angle calc is:  ");  m_usb_tx_int(puckangle); m_usb_tx_string("\n");
-
+                //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
+                print_stuff(locate, goal_locate, ADC_read, puckangle);
                 
                 if (blue_flag){ //Called only in COMM mode
                     if (check(PORTD,5)){ //Toggle blue LED (D5)
@@ -147,7 +132,19 @@ int main()
                     else set(PORTD,5);
                     blue_flag++;} //Toggle BLUE led to indicate COMM mode
                 if (blue_flag > 6){ //Turn off Blue LED after it blinks three times
-                        blue_flag = 0;}
+                        blue_flag = 0;
+                /*if (check(PORTB,4)){ //Fires the solenoid every other cycle ~~TESTING~~~~
+                    clear(PORTB,4);}
+                else set(PORTB,4);*/
+                  
+                if (frontswitch > 5)
+                {
+                    m_usb_tx_string("FRONT SWITCH IS PRESSED \n");   
+                    frontswitch = 0;
+                }
+                
+                
+                }
             } //~~END Goal calibration re-run
             
         } //~~~~~~END TIMER 0 LOOP~~~~~~~~~~~~~~
@@ -228,6 +225,19 @@ void init()
     
     set(DDRD,4);    //Set pin D4 for red LED as output
     set(DDRD,5);    //Set pin D5 for blue LED as output
+    
+    set(DDRB,4); //Set pin for Solenoid 1 & 2 (front facing)
+    clear(PORTB,4); //Keep Solenoid pin LOW
+    
+    clear(DDRE,6);//set pin for front switch (E6 = INT6)
+    set(PORTE,6); //Enable pullup resistor on E6
+    
+    set(EICRB,ISC61); //Set EICRA for INT6
+    clear(EICRB,ISC60); //1 0 triggers on falling
+
+    //set pin for back switch (B7 = PCINT7)
+    set(PCICR,PCIE0);
+    set(PCMSK0,PCINT7);
     
     ADC_init(); //disable JTAG, set up ADC, disable digital input for D6-D7, F0-F7
     
@@ -362,4 +372,40 @@ ISR(INT2_vect)
 {
     read_flag=1;
 }
+
+ISR(INT6_vect)
+{
+    frontswitch++;
+}
+ISR(PCINT0_vect) //interrupt for B7
+{
+    backswitch++;
+}
+
+void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle)
+{
+    int i;
+    m_usb_tx_string("Present Loc (X,Y, theta): ("); 
+    m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
+    m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
+    m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
+    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
+    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
+    m_usb_tx_string(") \n"); m_usb_tx_string("Present angle is: "); 
+    m_usb_tx_int(locate[2]); m_usb_tx_string("\n");
+    m_usb_tx_string("Goal angle is: "); 
+    m_usb_tx_int(goal_locate[2]);m_usb_tx_string("\n");
+    m_usb_tx_string("Difference between angles is: "); 
+    m_usb_tx_int(goal_locate[2]-locate[2]); m_usb_tx_string(" \n");
+
+    m_usb_tx_string("IR Readings:   (F5  F6  D7  D6  F0  F7  F1  F4) \n"); 
+    m_usb_tx_string("ADC reading is: ("); 
+    for (i=0; i < 8; i++){ //Print out all 8 ADC readings
+        m_usb_tx_int(ADC_read[i]); m_usb_tx_string("  "); }
+    m_usb_tx_string(")\n");
+    m_usb_tx_string("Puck angle calc is:  ");  m_usb_tx_int(puckangle); m_usb_tx_string("\n");
+    m_usb_tx_string("Quadrant is:  ");  m_usb_tx_int(locate[3]); m_usb_tx_string("\n");
+    
+}
+
 
