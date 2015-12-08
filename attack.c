@@ -11,6 +11,10 @@
 //                      **updated goal_calibrate to use internal quadrant** TEST!!
 // 12/05 10am JS - #define RFOVERRIDE AND OVERSTATE
 // 12/05 5pm JS - fixed puck detect
+// 12/08 9a JS - added code to initialize and test solenoids and switches
+// 12/08 12pm JS - changing motor_run function TEST
+// 12/08 1:30pm JS - turned off motor_run in GO2GOAL for testing (why is angle_diff chaotic?!)
+// 12/08 3pm JS - updated to motor_run : -180 < angle_diff < 180
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -20,7 +24,7 @@
 
 void init();
 void ADC_init();
-void motor_run(int* location, int* goallocation);
+void motor_run(int* location, int* goallocation, int motordir);
 //Runs the bot toward the goal location based upon the angle
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
@@ -28,10 +32,9 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle);
 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
 
 
-
 #define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
-#define OVERSTATE OFF  
+#define OVERSTATE GO2GOAL  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
 #define USB_DEBUG ON
 #define packet_length 10
@@ -69,6 +72,7 @@ int main()
     int ADC_track[3] = {0,0,0}; //[0] is adc counter, [1] is maximum ADC reading , [2] is ADC max location
     int puckangle = 0; int i; int j = 0;
     int quadrant = 0;
+    int motordir = 0;     //Motor driving counter
     
     init(); //INITIALIZE all timers, ADC setup, m_usb, m_wii, m_rf
     
@@ -85,7 +89,12 @@ int main()
         {
             timer0_flag=0; //Reset timer flag
             m_green(TOGGLE);    //Toggle green as timer is run
-            localize(locate);   //Run localize to determine the bot's location
+            localize(locate);//Run localize to determine the bot's location
+            //locate[2] -= 90;
+            /*while (locate[2] > 180){
+                locate[2]-=360;}
+            while (locate[2] < -180){
+                locate[2]+=360;}*/
 			
             //send(locate[0], locate[1], locate[2]); //Sends location data to another M2
             
@@ -125,6 +134,11 @@ int main()
 			    
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
                 print_stuff(locate, goal_locate, ADC_read, puckangle);
+                m_usb_tx_string("STATE IS "); m_usb_tx_int(state); m_usb_tx_string("\n");   
+                
+//~~~~~~~~~~~~FOR TESTING MOTOR RUN OVERRIDE~~~~~~~~~~~~
+                motor_run(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
+//~~~~~~~~~^^^$FOR TESTING MOTOR RUN OVERRIDE$^^^^^^^^^~~~~~~~
                 
                 if (blue_flag){ //Called only in COMM mode
                     if (check(PORTD,5)){ //Toggle blue LED (D5)
@@ -184,11 +198,11 @@ int main()
             case PUCK2GOAL:
                 if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck
                     state = SEESPUCK;}
-                go2goal(locate,goal_locate[2]);
+                go2goal(locate,goal_locate);
                 sevensegdispl(9); //Number 9 means GO!
                 break;
             case GO2GOAL: //Head to the goal
-                go2goal(locate,goal_locate[2]);
+                //motor_run(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
                 sevensegdispl(9); //Number 9 means GO!
                 //Going R? Move toward R goal, small turn radii
                 //Going L? Move toward R goal, small turn radii
@@ -275,86 +289,51 @@ void ADC_init()
 }
 
 //****************MOTOR RUN FUNCTION********************************//
-void motor_run(int*location, int*goallocation)
+void motor_run(int*location, int*goallocation, int motordir)
 { //Looks at the location with respect to the goal location and rotates if necesary
     int angle_diff;
     int j;
-    angle_diff = goallocation[2]-location[2];
-    int quad = location[3];
-   if(abs(angle_diff)<=20||abs(angle_diff)>=340)	//needs to rotate if error of 20 deg
-	{
-
-			clear(DDRB,5);
-			clear(DDRB,6);
-			for(j=0;j<30000;j++);
-			//m_usb_tx_string("GO STRAIGHT");
-            //m_usb_tx_string("\n");
-			set(PORTC,6);
-            set(PORTC,7);  
-			set(DDRB,5);
-			set(DDRB,6);
-    }
     
-	else	//ROTATE!
-	{	
+    int variation = 30; //variation in degrees that we accept
+    
+    angle_diff = goallocation[2]-(location[2]-90);
+    while (angle_diff > 180){
+        angle_diff -= 360;}
+    while (angle_diff < -180){
+        angle_diff += 360;}
 
-            if(quad==3 || quad==4)    //Below the X axis
-            {
-                //For bot angle between -angle_to_goal and +angle_to_goal
-                if(goallocation[2]<location[2] && 180+goallocation[2]>location[2])
-                {
-                    clear(DDRB,5);  //Turn off motor
-                    clear(DDRB,6);
-                    for(j=0;j<30000;j++); //Pause for a certain amount of time
-					//m_usb_tx_string("CLOCKWISE");
-                    //m_usb_tx_string("\n");
-					set(PORTC,6);   //Clockwise rotation
-                    clear(PORTC,7);
-					set(DDRB,5);   //Turn on motors
-					set(DDRB,6);
-                }
-                else	//For bot angle greater than angle_to_goal
-                {	clear(DDRB,5);
-	                clear(DDRB,6);
-	                for(j=0;j<30000;j++);
-                    //m_usb_tx_string("COUNTER-CLOCKWISE");
-                    //m_usb_tx_string("\n");
-					clear(PORTC,6); // Counter-clockwise rotation
-                    set(PORTC,7);	
-					set(DDRB,5);
-					set(DDRB,6);
-                }
-			}
-            if(quad==1 || quad==2) //Above the X-axis
-            {
-                if(-180+goallocation[2]<location[2] && goallocation[2]>location[2])//Counter-Clockwise rotation
-               {
-					clear(DDRB,5);
-	                clear(DDRB,6);
-                    for(j=0;j<30000;j++);
-                    //m_usb_tx_string("COUNTER-CLOCKWISE");
-                    //m_usb_tx_string("\n");
-					clear(PORTC,6);
-                    set(PORTC,7);
-                    set(DDRB,5);
-                    set(DDRB,6);
-                }
-                else	//Anti-Clockwise rotation
-                {	
-	                clear(DDRB,5);
-	                clear(DDRB,6);
-                    for(j=0;j<30000;j++);
-					//m_usb_tx_string("CLOCKWISE");
-					//m_usb_tx_string("\n");
-                    set(PORTC,6);
-                    clear(PORTC,7);	
-                    set(DDRB,5);
-                    set(DDRB,6);
-                }
-			}
-	}
-	OCR1A = 150;
-    OCR1B = 150;
+    int quad = location[3];
+      
+    clear(DDRB,5);
+    clear(DDRB,6);
+    for(j=0;j<30000;j++); //Pause for a certain amount of time
+    
+    if((angle_diff>(-variation)) && (angle_diff<variation)) //If angle is acceptable tolerance, keep going straight
+    {
+        set(PORTC,6); // GO STRAIGHT!!
+        set(PORTC,7);  
+    }
+
+    
+    else{    
+        m_usb_tx_string("Angle diff is"); m_usb_tx_int(angle_diff); m_usb_tx_string("\n");   
+        if (angle_diff<(-variation)){
+            m_usb_tx_string("GO COUNTER-CLOCKWISE \n");   
+            clear(PORTC,6); // Counter-clockwise rotation
+            set(PORTC,7);}
+
+        if (angle_diff>variation){
+            m_usb_tx_string("GO CLOCKWISE \n");   
+            set(PORTC,6); // Clockwise rotation
+            clear(PORTC,7);}
+    }
+        
+
+    clear(DDRB,5);
+    clear(DDRB,6);
+    OCR1A = 130;
+    OCR1B = 130;
+
 }
 
 void send(int x, int y, int z) //
@@ -385,6 +364,12 @@ ISR(PCINT0_vect) //interrupt for B7
 void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle)
 {
     int i;
+    int angle = goal_locate[2]-(locate[2]-90);
+    while (angle > 180){
+        angle -= 360;}
+    while (angle < -180){
+        angle += 360;}
+
     m_usb_tx_string("Present Loc (X,Y, theta): ("); 
     m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
     m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
@@ -396,7 +381,7 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle)
     m_usb_tx_string("Goal angle is: "); 
     m_usb_tx_int(goal_locate[2]);m_usb_tx_string("\n");
     m_usb_tx_string("Difference between angles is: "); 
-    m_usb_tx_int(goal_locate[2]-locate[2]); m_usb_tx_string(" \n");
+    m_usb_tx_int(angle); m_usb_tx_string(" \n");
 
     m_usb_tx_string("IR Readings:   (F5  F6  D7  D6  F0  F7  F1  F4) \n"); 
     m_usb_tx_string("ADC reading is: ("); 
