@@ -31,7 +31,7 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
 #define USB_DEBUG ON
 #define packet_length 10
 #define channel 1
-#define PUCK2GOAL 50
+#define DUTYMAX 190
 
 volatile char timer0_flag=0;
 volatile char front_switch = 0;
