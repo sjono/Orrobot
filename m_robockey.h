@@ -687,6 +687,4 @@ void go2goal(int*location, int destangle)
 			}
 		}
 	}
-	OCR1A = 150;
-	OCR1B = 150;
 }
