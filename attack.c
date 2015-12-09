@@ -9,6 +9,8 @@
 // 12/09 10a JS - Sees puck and switches to PUCK2GOAL, but turns TOO SLOWLY!
 // 12/09 10:30 JS - fixing motor_pd, to use distance_error >> not fast enough to turn back
 // 12/09 1:31 JS - included puck_detect locally (specific to attacker)
+// 12/09 1:45 JS - Rolling back motor_pd() version to simplify for pool play
+// 12/09 2:30 JS - updated version for Pool Play (solenoid fire now in Puck2Goal)***PUCK2GOAL calls motor_pd >> NEEDS WORK!!
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -20,7 +22,7 @@ void init();
 void ADC_init();
 void motor_run(int* location, int* goallocation, int motordir);
 //Runs the bot toward the goal location based upon the angle
-int motor_pd(int*locate, int*goal_locate, int*locate_old);
+void motor_pd(int*locate, int*goal_locate, int*locate_old);
 //Looks at the location with respect to the goal location and rotates based on PD feedback (12/09 01h21 version JS)
 void go2pduck(int puckangle, int* locate, int*locate_old);
 //Looks at puck angle and determines where to go (12/09 09h21 version JS)
@@ -33,7 +35,7 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ATT
 //Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
 
 
-#define RFOVERRIDE GO2GOAL
+#define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
 #define OVERSTATE OFF  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
@@ -86,7 +88,7 @@ int main()
            
     while(1)
     {
-        //m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
+        m_red(OFF); //m_red is turned off after intialization
         if(timer0_flag==1)
         {
             timer0_flag=0; //Reset timer flag
@@ -188,7 +190,7 @@ int main()
                 break;
             
             case GO2GOAL: //Head to the goal
-                motor_pd(locate,goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
+                motor_pd(locate, goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 sevensegdispl(9); //Number 9 means GO!
@@ -212,7 +214,7 @@ int main()
                     state=SEARCH1;
                     ADC_track[3] = 0;} //Reset ADC counter      */
                 /*if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid (worked well 12/08)           */
+                    set(PORTB,4);}            //Fire solenoid (moved to the Puck2Goal state)*/           
                 sevensegdispl(4); //#4 Looks like a lower case c
                 break;            
                 
@@ -225,8 +227,8 @@ int main()
                 if (ADC_track[3] < -100){
                     state = SEESPUCK;
                     ADC_track[3] = 0;}      //Reset ADC counter                go2goal(locate,goal_locate[2]);
-                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!) */         
+                if (frontswitch > 200){     //When the puck has been on the bot for a while
+                    set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!)
 
                 sevensegdispl(2); //#2 looks like a 9
                 break;
@@ -366,7 +368,7 @@ void motor_run(int*location, int*goallocation, int motordir)
 
 }
 
-int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 11h51 version JS
+void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 version JS
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~ PD CODE TESTIN~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 { //Looks at the location with respect to the goal location and rotates if necesary
@@ -452,9 +454,7 @@ int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 11h51 version
     m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); m_usb_tx_string("\n");
     m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
 
-    return magnitude;
 }
-
 
 void go2pduck(int puckangle, int* locate, int*locate_old) //12/09 9h21 version JS
 //Move towards the puck with proportional and derivative feedback

@@ -40,7 +40,7 @@ void sevensegdispl(int state);
 void go2goal(int* location, int destlocation);
 //Used to move the bot to the goal location by looking at the destination angle
 
-void motor_stop();
+char motor_stop();
 //Stops the motors
 void go2puck(int puckangle);
 //Goes to the puck based on puckangle reading
@@ -495,15 +495,24 @@ void go2puck(int puckangle)
 
 
 //****************MOTOR STOP FUNCTION********************************//
-void motor_stop()
+char motor_stop()
 {
-	if(OCR1A>10){
+	/*if(OCR1A>10){
         OCR1A-=1;}
     else clear(DDRB,5);//clear B5 to turn off L motor
     
     if(OCR1B>10){
         OCR1B-+1;}
-    else  clear(DDRB,6); //clear B6 to turn off R motor	
+    else  clear(DDRB,6); //clear B6 to turn off R motor
+    
+    if (check(DDRB,5) && check(DDRB6)){
+        return 1;}
+    else return 0;*/
+    
+    //SIMPLEST VERSION
+    clear(DDRB,5);//clear B5 to turn off L motor
+    clear(DDRB,6);//clear B5 to turn off L motor
+    return 1;
 }
 
 
