@@ -108,7 +108,7 @@ int main()
                 
                 switch(buffer[0]){ //Respond to game controller commands
                     case COMM:
-                        state = COMM; break;
+                        state = COMM; blue_flag = 1; break;
                     case PLAY:
                         state = SEESPUCK; break;
                     case PAUSE:
@@ -130,10 +130,11 @@ int main()
                 print_stuff(locate, goal_locate, ADC_read, puckangle, state);
                                
                 if (blue_flag){ //Called only in COMM mode
-                    if (check(PORTD,5)){ //Toggle blue LED (D5)
-                    clear(PORTD,5);}
-                    else set(PORTD,5);
+                    if (check(PORTD,4)){ //Toggle blue LED (D5)
+                    clear(PORTD,4);}
+                    else set(PORTD,4);
                     blue_flag++;} //Toggle BLUE led to indicate COMM mode
+                
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
                     clear(PORTB,4);}
@@ -152,15 +153,15 @@ int main()
         switch(state){
             case COMM:  //Listen for signal sent by the game
                 motor_stop();
-                blue_flag = 1;
-                if (blue_flag == 6){
-                    clear(PORTD,5);
+                if (blue_flag > 3){
+                    clear(PORTD,4);
                     blue_flag =0;
                     state = PAUSE;}
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
                 
             case PAUSE:  //Listen for signal sent by the game
+                clear(PORTD,4);
                 motor_stop();
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
