@@ -17,14 +17,16 @@ void ADC_init();
 void motor_run(int* location, int* goallocation, int motordir);
 //Runs the bot toward the goal location based upon the angle
 void motor_pd(int*locate, int*goal_locate, int*locate_old);
-//Looks at the location with respect to the goal location and rotates based on PD feedback
+//Looks at the location with respect to the goal location and rotates based on PD feedback (12/09 01h21 version JS)
+void go2pduck(int puckangle, int* locate, int*locate_old);
+//Looks at puck angle and determines where to go (12/09 09h21 version JS)
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
 void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int state);
 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
 
 
-#define RFOVERRIDE OFF
+#define RFOVERRIDE SEESPUCK
                 // override RF listening mode to start in desired state
 #define OVERSTATE OFF  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
@@ -335,7 +337,7 @@ void motor_run(int*location, int*goallocation, int motordir)
 
 }
 
-void motor_pd(int*locate, int*goal_locate, int*locate_old)
+void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 version JS
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~ PD CODE TESTIN~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 { //Looks at the location with respect to the goal location and rotates if necesary
@@ -420,6 +422,71 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)
     m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); m_usb_tx_string("\n");
     m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
 
+}
+
+void go2pduck(int puckangle, int* locate, int*locate_old) //12/09 9h21 version JS
+//Move towards the puck with proportional and derivative feedback
+{
+	int j;
+      
+    //~~~~~~~~~~~STEP1: compare angles~~~~~~~~~~~~~~~~~~
+    float Kp = 2; float Kd = 0.5; 
+    int angle_pd = 0;
+    int old1A=OCR1A; int old1B=OCR1B;
+    int left_step; int right_step;
+    int angle_change;
+    int lincrement = OCR1A; int rincrement = OCR1B; //Stores old DUTY cycle value
+    
+    angle_change = locate[2]-locate_old[2];
+    
+    angle_pd = (float) Kp * puckangle - (float) Kd * angle_change; //Gives a reading from 0 to 90
+    
+    if(!check(PORTC,6)){
+        old1A = -OCR1A;}
+   if(!check(PORTC,7)){
+        old1B = -OCR1B;}
+                                    //Left and right Confirmed for attacker (12/08 6pm JS)
+    left_step = old1A+(float) angle_pd*5/100;    //+Left means turning CCW, decreases angle (by max of 2)
+    right_step = old1B-(float) angle_pd*5/100;          //+Right means CW, increases angle (by max of 2)
+
+        
+        //~~~~~~~~~~~STEP2: compare location~~~~~~~~~~~~~~~~~~
+        //Code to set OCR1A and INV_pins as necessary if left_step +/- and so on
+    
+    if ((left_step < DUTYMAX) && (left_step > -DUTYMAX))
+        {
+            m_usb_tx_string("DUTYMAX CHECK WORKED for LEFT \n");
+            if (left_step > 0){     //FORWARD
+                set(PORTC,6);       //Left is C6 is OCR1A (B5)
+                OCR1A = left_step;} 
+            else{                   //BACKWARDS
+                clear(PORTC,6);   
+                OCR1A = -left_step;}
+        }
+
+
+    if ((right_step < DUTYMAX) && (right_step > -DUTYMAX))
+        {
+            m_usb_tx_string("DUTYMAX CHECK WORKED for RIGHT \n");    
+            if (right_step > 0){        //FORWARD
+                set(PORTC,7);           //Right is C7 is OCR1B (B6)
+                OCR1B = right_step;} 
+            else{                   //BACKWARDS
+                clear(PORTC,7);
+                OCR1B = -right_step;}
+        }
+      
+      m_usb_tx_string("angle_change:  ");  m_usb_tx_int(angle_change); m_usb_tx_string("\n");
+    m_usb_tx_string("angle_pd:  ");  m_usb_tx_int(angle_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("left_step:  ");  m_usb_tx_int(left_step); m_usb_tx_string("\n");
+    m_usb_tx_string("right step:  ");  m_usb_tx_int(right_step); m_usb_tx_string("\n");
+    m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); 
+    if (check(PORTC,6)){ m_usb_tx_string("    FORWARD\n");}
+    else m_usb_tx_string("    BACKWARD\n");
+    m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B);
+    if (check(PORTC,7)){ m_usb_tx_string("    FORWARD\n");}
+    else m_usb_tx_string("    BACKWARD\n");
+    
 }
 
 void send(int x, int y, int z) //
