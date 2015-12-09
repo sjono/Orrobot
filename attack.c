@@ -5,8 +5,9 @@
 // Date: Dec 03 2015
 // 12/08 5p JS - working on motor_run again
 // 12/08 8:30p JS - updated for tonights pool match
-// 12/08 9:40a JS - testing SEESPUCK >> PUCK2GOAL, reading cases with 7SEGMENT
-// 12/08 10a JS - Sees puck and switches to PUCK2GOAL, but turns TOO SLOWLY!
+// 12/09 9:40a JS - testing SEESPUCK >> PUCK2GOAL, reading cases with 7SEGMENT
+// 12/09 10a JS - Sees puck and switches to PUCK2GOAL, but turns TOO SLOWLY!
+// 12/09 10:30 JS - fixing motor_pd, to use distance_error >> not fast enough to turn back!
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -372,8 +373,8 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 versio
 
 //~~~~~~~~~~~STEP1: compare angles~~~~~~~~~~~~~~~~~~
     float Kpangl = 2; float Kdangl = 0.2;   //BEST: Kd = 0.5; trying larger and smaller (BAD) values
-    float Kpdist = 2; float Kddist = 0.5;   //BEST: Kd = 0.5
-    int angle_pd = 0; int dir_pd;
+    float Kpdist = 2; float Kddist = 0.2;   //BEST: Kd = 0.5
+    int angle_pd = 0; int dir_pd; int dir_error;
     int left_step; int right_step; int fwd_step;
     int angle_target; int angle_change; int magnitude; int mag_old;
     int lincrement = OCR1A; int rincrement = OCR1B;
@@ -398,14 +399,14 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 versio
     mag_old = (float)(locate[0] - locate_old[0])*(locate[0] - locate_old[0]);
     mag_old -= (locate[1] - locate_old[1])*(locate[1] - locate_old[1]);
     mag_old = (float) sqrt(mag_old);
-
     
-    
-    dir_pd = (float) Kpdist*magnitude - (float) Kpdist*mag_old; //Ranges from -500 to 500
+    dir_error = cos(angle_target*3.14/180)*magnitude;    //Weight the magnitude by the angle to goal (180 means NEG!)
+    dir_pd = (float) Kpdist*dir_error;              //Calculate feedback
+    dir_pd -= (float) Kddist*(magnitude-mag_old); //Add in derivative feedback
     
     fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
     int a=1; //overall gai~~~~~~~~Parameters 
-    int b=2; //angle gain~~~~~~~~~...........to test 
+    int b=1; //angle gain~~~~~~~~~...........to test 
     int c=1; //fwd gain~~~~~~~~~~~...................coefficients
         //TESTING {a,b,c}: 9am {1,2,1} = good; 10a  {1,1,2} = BAD, 10h05 {1,1,1} = also bad
     lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
@@ -438,7 +439,8 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 versio
     m_usb_tx_string(") \n");
     m_usb_tx_string("Magnitude:  ");  m_usb_tx_int(magnitude); m_usb_tx_string("\n");
     m_usb_tx_string("Mag_old:  ");  m_usb_tx_int(mag_old); m_usb_tx_string("\n");
-    m_usb_tx_string("Dir_pd [ KP*mag - KP*mag_old ]:  ");  m_usb_tx_int(dir_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("Dir_error [ mag*cos(angle) ]:  ");  m_usb_tx_int(dir_error); m_usb_tx_string("\n");
+    m_usb_tx_string("Dir_pd [ KP*dir_error - KP*mag_old ]:  ");  m_usb_tx_int(dir_pd); m_usb_tx_string("\n");
     m_usb_tx_string("Angle PD:  ");  m_usb_tx_int(angle_pd); m_usb_tx_string("\n");
     m_usb_tx_string("Left Step:  ");  m_usb_tx_int(left_step); m_usb_tx_string("\n");
     m_usb_tx_string("Right Step:  ");  m_usb_tx_int(right_step); m_usb_tx_string("\n");
@@ -447,6 +449,7 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 versio
     m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
 
 }
+
 
 void go2pduck(int puckangle, int* locate, int*locate_old) //12/09 9h21 version JS
 //Move towards the puck with proportional and derivative feedback
