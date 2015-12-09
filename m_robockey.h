@@ -26,6 +26,7 @@
 #define SHOOT 40
 #define DEFEND 45
 #define PUCK2GOAL 50
+#define CLEARGOAL 60
 
 char localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
@@ -499,8 +500,13 @@ void go2puck(int puckangle)
 //****************MOTOR STOP FUNCTION********************************//
 void motor_stop()
 {
-	clear(DDRB,5);//clear B5 to turn off L motor
-    clear(DDRB,6); //clear B6 to turn off R motor	
+	if(OCR1A>10){
+        OCR1A-=1;}
+    else clear(DDRB,5);//clear B5 to turn off L motor
+    
+    if(OCR1B>10){
+        OCR1B-+1;}
+    else  clear(DDRB,6); //clear B6 to turn off R motor	
 }
 
 int puck_detect(int* ADC_read, int* ADC_track, int puckangle)
