@@ -3,19 +3,8 @@
 // Version: 0.1
 // Author: Jono / Aditya
 // Date: Dec 03 2015
-// 12/01 JS - Updated to use int for location and goallocation, not float
-// 12/01 5pm JS - Updated to clean up (needs testing, especially RF)
-// 12/01 9pm JS - added Red and Blue LED's for COMM test
-// 12/03 10pm JS - added puck detection
-// 12/04 4:30p JS - made ADC_init(), case/switch for buffer read, **created puck_detect() **TEST!!!
-//                      **updated goal_calibrate to use internal quadrant** TEST!!
-// 12/05 10am JS - #define RFOVERRIDE AND OVERSTATE
-// 12/05 5pm JS - fixed puck detect
-// 12/08 9a JS - added code to initialize and test solenoids and switches
-// 12/08 12pm JS - changing motor_run function TEST
-// 12/08 1:30pm JS - turned off motor_run in GO2GOAL for testing (why is angle_diff chaotic?!)
-// 12/08 3pm JS - updated to motor_run : -180 < angle_diff < 180
-// 12/08 4:30 JS - working on debounced B7 switch input, fixed BLUE light to blink during COMM
+// 12/08 5p JS - working on motor_run again
+// 12/08 8:30p JS - updated for tonights pool match
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -66,10 +55,10 @@ int main()
     int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
     int goal_locate[3]; //Stores X, Y, angle to the goal
     int centerpt[3] = {0, 0, 0};     //Stores X, Y, angle to center point
-    int state = PAUSE;
+    int state = PAUSE;          //INTIALIZE in PAUSE mode
     int blue_flag = 0;
     int ADC_read[8];    //Stores values from the ADC readings
-    int ADC_track[3] = {0,0,0}; //[0] is adc counter, [1] is maximum ADC reading , [2] is ADC max location
+    int ADC_track[4] = {0,0,0,0}; //[0] is adc counter, [1] is maximum ADC reading , [2] is ADC max location, [3] ADC count
     int puckangle = 0; int i; int j = 0;
     int quadrant = 0;
     int motordir = 0;     //Motor driving counter
@@ -80,8 +69,9 @@ int main()
         localize(locate);}
     quadrant = goalcalibrate(locate, goal_locate);	//Calibrate goal location  
     
-        
-
+    if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
+            state = RFOVERRIDE;} //Override state >> SEARCH1
+           
     while(1)
     {
         //m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
@@ -98,7 +88,7 @@ int main()
 			
             //send(locate[0], locate[1], locate[2]); //Sends location data to another M2
             
-//~~~~~~~~TESTING CODE INSIDE TIMER0~~~~~
+            //~~~~~~~~TESTING CODE INSIDE TIMER0~~~~~
             if (!check(PINB,7))
             {
                 frontswitch+=1;
@@ -107,7 +97,7 @@ int main()
             }
             else frontswitch = 0;
 
-//~~~~~~~~END TESTING CODE INSIDE TIMER0~~~~~
+            //~~~~~~~~END TESTING CODE INSIDE TIMER0~~~~~
             if (read_flag)  //If RF signal is received, read to buffer
             {
                 m_rf_read(buffer, packet_length); //Read from RF
@@ -125,13 +115,7 @@ int main()
                         state = PAUSE; break;}           
             }
             
-            if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
-                state = RFOVERRIDE;} //Override state >> SEARCH1
-            
-            //Send quadrant location to the 7 Segment to display
-             sevensegdispl(locate[3]);
-            
-            
+                        
             //~~Rerun goal calibration~~~~~~
             if (j < 50){ //Set up counter to reset every X milliseconds
                 j++;}
@@ -143,17 +127,17 @@ int main()
                 //Calibrate goal location to be positive angle
 			    
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
-                print_stuff(locate, goal_locate, ADC_read, puckangle);
+                print_stuff(locate, goal_locate, ADC_read, puckangle, state);
                                
                 if (blue_flag){ //Called only in COMM mode
-                    if (check(PORTD,4)){ //Toggle blue LED (D5)
-                    clear(PORTD,4);}
-                    else set(PORTD,4);
+                    if (check(PORTD,5)){ //Toggle blue LED (D5)
+                    clear(PORTD,5);}
+                    else set(PORTD,5);
                     blue_flag++;} //Toggle BLUE led to indicate COMM mode
-            /*  //Fires the solenoid every other cycle ~~TESTING~~~~
+                //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
                     clear(PORTB,4);}
-                else set(PORTB,4);*/
+                //else set(PORTB,4); //This would trigger the solenoid to fire whenever goal calibrate runs
                    
             }   //~~END Goal calibration re-run
             
@@ -170,6 +154,8 @@ int main()
                 motor_stop();
                 blue_flag = 1;
                 if (blue_flag == 6){
+                    clear(PORTD,5);
+                    blue_flag =0;
                     state = PAUSE;}
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
@@ -188,15 +174,17 @@ int main()
                 
             case SEESPUCK:                 //Go directly to the puck
                 go2puck(puckangle);
+                if (frontswitch > 200){     //When the puck has been on the bot for a while
+                    set(PORTB,4);}            //Fire solenoid
                 /*if (ADC_read[0]>980){     //If center ADC reads HIGHEST VALUE, head to the goal
-                        state=GO2GOAL;}*/
+                        state=GO2GOAL;}
                 if(ADC_track[1]<20){        //If ADC readings drop too low, search again
-                        state=SEARCH1;}
+                        state=SEARCH1;}*/
                 break;            
             case PUCK2GOAL:
                 if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck
                     state = SEESPUCK;}
-                go2goal(locate,goal_locate);
+                go2goal(locate,goal_locate[2]);
                 sevensegdispl(9); //Number 9 means GO!
                 break;
             case GO2GOAL: //Head to the goal
@@ -212,7 +200,7 @@ int main()
         
         if(OVERSTATE){  //Override code to keep the bot in one particular state
             state = OVERSTATE;}
-        OCR1A = 170; OCR1B = 170;
+        OCR1A = 180; OCR1B = 180;
     } //~~~~END MAIN WHILE LOOP~~~~~~~~~~~~~~~~~~~~~~~~
 }
 
@@ -290,7 +278,7 @@ void motor_run(int*location, int*goallocation, int motordir)
     
     int variation = 30; //variation in degrees that we accept
     
-    angle_diff = goallocation[2]-(location[2]-90);
+    angle_diff = goallocation[2]-(location[2]);
     while (angle_diff > 180){
         angle_diff -= 360;}
     while (angle_diff < -180){
@@ -310,16 +298,27 @@ void motor_run(int*location, int*goallocation, int motordir)
 
     
     else{    
-        m_usb_tx_string("Angle diff is"); m_usb_tx_int(angle_diff); m_usb_tx_string("\n");   
+        //m_usb_tx_string("Angle diff is"); m_usb_tx_int(angle_diff); m_usb_tx_string("\n");   
         if (angle_diff<(-variation)){
-            m_usb_tx_string("GO COUNTER-CLOCKWISE \n");   
-            clear(PORTC,6); // Counter-clockwise rotation
-            set(PORTC,7);}
+           // m_usb_tx_string("GO COUNTER-CLOCKWISE \n");   
+        //    clear(PORTC,6); // Counter-clockwise rotation
+        //    set(PORTC,7);
+//~~~~~try it backwards~~~~~~
+            set(PORTC,6); // Clockwise rotation
+            clear(PORTC,7);
+
+        }
 
         if (angle_diff>variation){
-            m_usb_tx_string("GO CLOCKWISE \n");   
-            set(PORTC,6); // Clockwise rotation
-            clear(PORTC,7);}
+            //m_usb_tx_string("GO CLOCKWISE \n");   
+            //set(PORTC,6); // Clockwise rotation
+            //clear(PORTC,7);
+//~~~~~try it backwards~~~~~~
+            clear(PORTC,6); // Counter-clockwise rotation
+            set(PORTC,7);
+
+        }
+            
     }
         
 

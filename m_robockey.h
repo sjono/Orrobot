@@ -585,29 +585,32 @@ int goalcalibrate(int*location, int*goallocation)
     int quadrant;
     if(location[0]>0&&location[1]>0)
 	{
-		set(PORTD,4); //Turn on red LED to indicate going RIGHT 
-        quadrant = 1;	//Top Right
+		quadrant = 1;	//Top Right
+        set(PORTD,4); //Turn on red LED to indicate going RIGHT 
+        clear(PORTD,5); //Turn off Blue LED
 		goallocation[0]=-380;
 	}
 	if(location[0]<0&&location[1]>0)
 	{	
-		m_red(OFF);
-        set(PORTD,5); //Turn on blue LED to indicate going LEFT
 		quadrant = 2;	//Top Left
-		goallocation[0]=310;
+        set(PORTD,5); //Turn on blue LED to indicate going LEFT
+		clear(PORTD,4); //Turn off red LED
+        m_red(OFF);
+        goallocation[0]=310;
 	}
 	if(location[0]<0&&location[1]<0)
 	{
-		set(PORTD,5); //Turn on blue LED to indicate going LEFT
-        m_red(OFF);
-        set(PORTD,4); //Turn on red LED
 		quadrant = 3;	//Bottom Left
+        set(PORTD,5); //Turn on blue LED to indicate going LEFT
+        clear(PORTD,4); //Turn off red LED
+        m_red(OFF);
 		goallocation[0]=310;
 	}
 	if(location[0]>0&&location[1]<0)
 	{
-		set(PORTD,4); //Turn on red LED to indicate going RIGHT
-        quadrant = 4;	//Bottom right
+		quadrant = 4;	//Bottom right
+        set(PORTD,4); //Turn on red LED to indicate going RIGHT
+        clear(PORTD,5); //Turn off Blue LED
 		goallocation[0]=-380;
 	}
     goallocation[1]=0;
