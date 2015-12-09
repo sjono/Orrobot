@@ -6,6 +6,7 @@
 // 12/09 9a JS - begun testing on this
 // 12/09 12p JS - added state = CLEARGOAL, and updated motor_pd to return magnitude
 // 12/09 1:30p JS - added puck_detect (looks at only 3 ADCs)
+// 12/09 3:30pm JS - fixed puck_detect code
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -216,20 +217,11 @@ int main()
             case SEESPUCK:                 //Go directly to the puck
                 go2puck(puckangle);
                 
-                if(frontswitch > 20){
-                        state = PUCK2GOAL;}
                 if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
                         ADC_track[3]+=1;}
-                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
+                /*if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
                         state = PUCK2GOAL;
-                        ADC_track[3] = 0;} //Reset ADC counter
-                /*if(ADC_track[1]<20){        //If ADC readings drop too low, search again
-                        ADC_track[3]-=1;}
-                if(ADC_track[3] < -50){
-                    state=SEARCH1;
-                    ADC_track[3] = 0;} //Reset ADC counter      */
-                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid (worked well 12/08)           */
+                        ADC_track[3] = 0;} //Reset ADC counter*/
                 sevensegdispl(4); //#4 Looks like a lower case c
                 break;            
                 
@@ -439,10 +431,10 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle) //FOR ENFORCER
             
             
             if (ADC_track[2] == 0){ //IF MAX POINT IS (+) turn right
-                puckangle = -90;}
+                puckangle = 90;}
             else if(ADC_track[2] == 1){    //MAX POINT IS 0 MEANS GO STRAIGHT!
                  puckangle = 0;}
-            else puckangle = 90; //IF MAX POINT IS (-) turn left
+            else puckangle = -90; //IF MAX POINT IS (-) turn left
             ADC_track[1] = 0;          //RESET ADC_max VALUE and FLAG
         }  
         
