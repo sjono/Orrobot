@@ -16,6 +16,8 @@ void init();
 void ADC_init();
 void motor_run(int* location, int* goallocation, int motordir);
 //Runs the bot toward the goal location based upon the angle
+void motor_pd(int*locate, int*goal_locate, int*locate_old);
+//Looks at the location with respect to the goal location and rotates based on PD feedback
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
 void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int state);
@@ -53,6 +55,7 @@ int main()
     m_red(ON); //If only red is on, still initializing
     m_wait(50); //Wait to be sure no hands are above the mWii
     int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
+    int locate_old[3]; //Stores old location values
     int goal_locate[3]; //Stores X, Y, angle to the goal
     int centerpt[3] = {0, 0, 0};     //Stores X, Y, angle to center point
     int state = PAUSE;          //INTIALIZE in PAUSE mode
@@ -79,6 +82,8 @@ int main()
         {
             timer0_flag=0; //Reset timer flag
             m_green(TOGGLE);    //Toggle green as timer is run
+            for (i=0; i < 4; i++){ //Store old localization values
+                locate_old[i] = locate[i];}
             localize(locate);//Run localize to determine the bot's location
             //locate[2] -= 90;
             /*while (locate[2] > 180){
@@ -327,6 +332,93 @@ void motor_run(int*location, int*goallocation, int motordir)
     clear(DDRB,6);
     OCR1A = 130;
     OCR1B = 130;
+
+}
+
+void motor_pd(int*locate, int*goal_locate, int*locate_old)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~ PD CODE TESTIN~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{ //Looks at the location with respect to the goal location and rotates if necesary
+    
+    //~~~VARIABLES: 
+    //location_pd[0] = angular feedback L wheel, location_pd[1] = angular feedback R wheel;
+    //location_pd[2] = directional feedback BOTH wheel
+
+//~~~~~~~~~~~STEP1: compare angles~~~~~~~~~~~~~~~~~~
+    float Kpangl = 2; float Kdangl = 0.2;   //BEST: Kd = 0.5; trying larger and smaller (BAD) values
+    float Kpdist = 2; float Kddist = 0.5;   //BEST: Kd = 0.5
+    int angle_pd = 0; int dir_pd;
+    int left_step; int right_step; int fwd_step;
+    int angle_target; int angle_change; int magnitude; int mag_old;
+    int lincrement = OCR1A; int rincrement = OCR1B;
+    
+    angle_target = goal_locate[2]-locate[2];
+    angle_change = locate[2]-locate_old[2];
+    
+    angle_pd = (float) Kpangl*angle_target - (float) Kdangl*angle_change;
+    
+    angle_pd = angle_pd*100/360; //Gives a reading from 0 to 100
+        
+                                    //Left and right Confirmed for attacker (12/08 6pm JS)
+    left_step = -(float) angle_pd*2/10;    //+Left means turning CCW, decreases angle (by max of 2)
+    right_step = (float) angle_pd*2/10;          //+Right means CW, increases angle (by max of 2)
+        
+//~~~~~~~~~~~STEP2: compare location~~~~~~~~~~~~~~~~~~
+    
+    magnitude = (float)(locate[0] - goal_locate[0])/1000*(locate[0] - goal_locate[0]); //Divide by 1000 to keep < 64000
+    magnitude += (locate[1] - goal_locate[1])/1000*(locate[1] - goal_locate[1]);
+    magnitude = (float) 10 * sqrt(magnitude);
+    
+    mag_old = (float)(locate[0] - locate_old[0])*(locate[0] - locate_old[0]);
+    mag_old -= (locate[1] - locate_old[1])*(locate[1] - locate_old[1]);
+    mag_old = (float) sqrt(mag_old);
+
+    
+    
+    dir_pd = (float) Kpdist*magnitude - (float) Kpdist*mag_old; //Ranges from -500 to 500
+    
+    fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
+    int a=1; //Parameters 
+    int b=2; //...........to test
+    int c=1; //...................coefficients
+    
+    lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
+    rincrement += a*(b*right_step+c*fwd_step);
+//~~~~~~~~~~~STEP3: update variables~~~~~~~~~~~~~~~~~~
+    
+    if (lincrement < DUTYMAX)
+    {
+        if ((lincrement) < 0){
+                OCR1A = 0;}
+        else OCR1A = lincrement;
+    }
+    else OCR1A = DUTYMAX;
+    if (rincrement < DUTYMAX)
+    {
+        if ((rincrement) < 0){  
+                OCR1B = 0;}
+        else OCR1B = rincrement;
+    }
+    else OCR1B = DUTYMAX;
+    
+    //~~~~~~~~~~~~PRINT STUFF~~~~~~~~~~~~~~
+    
+    m_usb_tx_string("Present Loc (X,Y, theta): ("); 
+    m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
+    m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
+    m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
+    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
+    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
+    m_usb_tx_string(") \n");
+    m_usb_tx_string("Magnitude:  ");  m_usb_tx_int(magnitude); m_usb_tx_string("\n");
+    m_usb_tx_string("Mag_old:  ");  m_usb_tx_int(mag_old); m_usb_tx_string("\n");
+    m_usb_tx_string("Dir_pd [ KP*mag - KP*mag_old ]:  ");  m_usb_tx_int(dir_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("Angle PD:  ");  m_usb_tx_int(angle_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("Left Step:  ");  m_usb_tx_int(left_step); m_usb_tx_string("\n");
+    m_usb_tx_string("Right Step:  ");  m_usb_tx_int(right_step); m_usb_tx_string("\n");
+    m_usb_tx_string("FWD Step:  ");  m_usb_tx_int(fwd_step); m_usb_tx_string("\n");
+    m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); m_usb_tx_string("\n");
+    m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
 
 }
 
