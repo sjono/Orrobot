@@ -10,7 +10,8 @@
 // 12/09 10:30 JS - fixing motor_pd, to use distance_error >> not fast enough to turn back
 // 12/09 1:31 JS - included puck_detect locally (specific to attacker)
 // 12/09 1:45 JS - Rolling back motor_pd() version to simplify for pool play
-// 12/09 2:30 JS - updated version for Pool Play (solenoid fire now in Puck2Goal)***PUCK2GOAL calls motor_pd >> NEEDS WORK!!
+// 12/09 2:30 JS - updated version for Pool Play (solenoid fires in Puck2Goal)
+// 12/09 4:14p JS - removed OCR1A & OCR1B override - DUH!
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -42,7 +43,7 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ATT
 #define USB_DEBUG ON
 #define packet_length 10
 #define channel 1
-#define DUTYMAX 180
+#define DUTYMAX 170
 
 volatile char timer0_flag=0;
 volatile char front_switch = 0;
@@ -96,11 +97,7 @@ int main()
             for (i=0; i < 4; i++){ //Store old localization values
                 locate_old[i] = locate[i];}
             localize(locate);//Run localize to determine the bot's location
-            //locate[2] -= 90;
-            /*while (locate[2] > 180){
-                locate[2]-=360;}
-            while (locate[2] < -180){
-                locate[2]+=360;}*/
+
 			
             //send(locate[0], locate[1], locate[2]); //Sends location data to another M2
             
@@ -239,7 +236,6 @@ int main()
         
         if(OVERSTATE){  //Override code to keep the bot in one particular state
             state = OVERSTATE;}
-        OCR1A = 180; OCR1B = 180;
     } //~~~~END MAIN WHILE LOOP~~~~~~~~~~~~~~~~~~~~~~~~
 }
 

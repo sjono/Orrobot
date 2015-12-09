@@ -156,7 +156,7 @@ int main()
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
                     clear(PORTB,4);}
-                //else set(PORTB,4); //This would trigger the solenoid to fire whenever goal calibrate runs
+                else set(PORTB,4); //This would trigger the solenoid to fire whenever goal calibrate runs
                    
             }   //~~END Goal calibration re-run
             
@@ -244,7 +244,7 @@ int main()
         
         if(OVERSTATE){  //Override code to keep the bot in one particular state
             state = OVERSTATE;}
-        OCR1A = 180; OCR1B = 180;
+        //OCR1A = 180; OCR1B = 180;
     } //~~~~END MAIN WHILE LOOP~~~~~~~~~~~~~~~~~~~~~~~~
 }
 
