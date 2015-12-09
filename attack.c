@@ -19,7 +19,7 @@ void init();
 void ADC_init();
 void motor_run(int* location, int* goallocation, int motordir);
 //Runs the bot toward the goal location based upon the angle
-void motor_pd(int*locate, int*goal_locate, int*locate_old);
+int motor_pd(int*locate, int*goal_locate, int*locate_old);
 //Looks at the location with respect to the goal location and rotates based on PD feedback (12/09 01h21 version JS)
 void go2pduck(int puckangle, int* locate, int*locate_old);
 //Looks at puck angle and determines where to go (12/09 09h21 version JS)
@@ -362,7 +362,7 @@ void motor_run(int*location, int*goallocation, int motordir)
 
 }
 
-void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 version JS
+int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 11h51 version JS
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~ PD CODE TESTIN~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 { //Looks at the location with respect to the goal location and rotates if necesary
@@ -448,6 +448,7 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 versio
     m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); m_usb_tx_string("\n");
     m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
 
+    return magnitude;
 }
 
 
