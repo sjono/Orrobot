@@ -5,6 +5,7 @@
 // Date: Dec 09 2015
 // 12/09 9a JS - begun testing on this
 // 12/09 12p JS - added state = CLEARGOAL, and updated motor_pd to return magnitude
+// 12/09 1:30p JS - added puck_detect (looks at only 3 ADCs)
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -20,6 +21,9 @@ int motor_pd(int*locate, int*goal_locate, int*locate_old);
 //Looks at the location with respect to the goal location and rotates based on PD feedback (12/09 01h21 version JS)
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
+int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ENFORCER
+//Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
+
 void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int state);
 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
 
@@ -59,7 +63,7 @@ int main()
     int locate_old[3]; //Stores old location values
     int goal_locate[3]; //Stores X, Y, angle to the goal
     int centerpt[3] = {0, 0, 0};     //Stores X, Y, angle to center point
-    int clearpt[4] = {-150, -40, 0, 0};     //Clearing start point : make sure this is a good location!
+    int clearpt[4] = {-150, -20, 0, 0};     //Clearing start point : make sure this is a good location!
     int state = PAUSE;          //INTIALIZE in PAUSE mode
     int blue_flag = 0;
     int ADC_read[8];    //Stores values from the ADC readings
@@ -117,7 +121,7 @@ int main()
                     case COMM:
                         state = COMM; blue_flag = 1; break;
                     case PLAY:
-                        state = SEESPUCK; break;
+                        state = GO2GOAL; break;
                     case PAUSE:
                         state = PAUSE; break;}           
             }
@@ -136,8 +140,12 @@ int main()
                 //Calibrate goal location to be positive angle
 			    
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
-                print_stuff(locate, goal_locate, ADC_read, puckangle, state);
-                               
+                //print_stuff(locate, goal_locate, ADC_read, puckangle, state);
+//~~~~READINGS FROM MOTOR PD ~~~~TESTING ONLY~~~~~~~~~~~~~~~~~
+                //motor_pd(locate,goal_locate, locate_old); //FOR TESTING ONLY
+                //go2pduck(puckangle, locate, locate_old);
+//~~~~END READINGS FROM MOTOR PD ~~~~TESTING ONLY~~~~~~~~~~~~~~~~~
+                
                 if (blue_flag){ //Called only in COMM mode
                     if (check(PORTD,4)){ //Toggle blue LED (D5)
                     clear(PORTD,4);}
@@ -177,10 +185,14 @@ int main()
             
             case CLEARGOAL: //Go towards GOAL and CLEAR!
                 if (motor_pd(locate, clearpt, locate_old) < 20){ //FIRST GO TO CLEAR POINT
-                    clearpt[4] += 1;}
-                if (clearpt[4] > 100){      //NEXT SWEEP!
-                    clearpt[1] = -clearpt[0]; clearpt[2] = 180; //Go to opposite Y-value
-                    clearpt[4] = 0;}
+                    clearpt[3] += 1;
+                    sevensegdispl(2);} //#2 looks like a 9
+                if (clearpt[3] > 100){      //NEXT SWEEP!
+                    clearpt[1] = -clearpt[0]; clearpt[0]+=10; clearpt[2] = 100; //Go to opposite Y-value
+                    clearpt[3] = 0;}
+                if(clearpt[1] > 0){
+                    sevensegdispl(2);} //#2 looks like a 9
+                else sevensegdispl(4); //#4 Looks like a lower case c;
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 break;
@@ -193,7 +205,7 @@ int main()
                 break;
             
             case GO2GOAL: //Head to the goal
-                motor_pd(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
+                motor_pd(locate,goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 sevensegdispl(9); //Number 9 means GO!
@@ -369,9 +381,76 @@ void motor_run(int*location, int*goallocation, int motordir)
 
 }
 
-int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 11h51 version JS
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//~~~~~~~ PD CODE TESTIN~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+int puck_detect(int* ADC_read, int* ADC_track, int puckangle) //FOR ENFORCER
+//IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **On Attacker, F6 is not reading
+//ANGLES: (30 0 -- -30 -- -- -- -- --)
+
+{
+    int i;
+    
+    if(check(ADCSRA,ADIF) && (ADC_track[0] < 8)) //IF ADC IS READY, READS VALUE AND SETS NEXT PIN TO READ
+        {    
+                ADC_read[ADC_track[0]] = ADC;
+                ADC_track[0]++;
+        
+                set(ADCSRA,ADIF);     //Clears the pin
+                clear(ADCSRA,ADEN);     //Disables the ADC system while changing settings
+
+                switch(ADC_track[0])
+                {
+                case 1:            //Set ADC to read from F0
+                F6_read();        
+                break;
+                case 2:            //Set ADC to read from F7
+                D7_read();
+                break;
+                case 3:            //Set ADC to read from F1
+                D6_read();
+                break;
+                case 4:            //Set ADC to read from F4
+                F0_read();
+                break;
+                case 5:            //Set ADC to read from F5
+                F7_read();
+                break;
+                case 6:            //Set ADC to read from D7
+                F1_read();
+                break;
+                case 7:            //Set ADC to read from F6
+                F4_read();
+                break;
+                case 8:            //Set ADC to read from D6
+                F5_read();
+                break;
+                }
+                set(ADCSRA,ADEN);       //Enable conversions
+                set(ADCSRA,ADSC);       //Start conversions
+        }    
+               
+            
+        if (ADC_track[0]>7)   //Use full ADC array to determine angle (use max point)
+        {
+            ADC_track[0] = 0;   //Reset ADC counter
+            
+            for (i=0; i < 8; i++){   //FIND MAX POINT IN ADC_read              
+                if (ADC_read[i] > ADC_track[1]){
+                    ADC_track[2] = i;   //Store counter location into ADC max location
+                    ADC_track[1] = ADC_read[i];}} //Store max reading into ADC_max location
+            
+            
+            if (ADC_track[2] == 0){ //IF MAX POINT IS (+) turn right
+                puckangle = -90;}
+            else if(ADC_track[2] == 1){    //MAX POINT IS 0 MEANS GO STRAIGHT!
+                 puckangle = 0;}
+            else puckangle = 90; //IF MAX POINT IS (-) turn left
+            ADC_track[1] = 0;          //RESET ADC_max VALUE and FLAG
+        }  
+        
+        return puckangle;
+}
+
+
+int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 12h40 version JS testing
 { //Looks at the location with respect to the goal location and rotates if necesary
     
     //~~~VARIABLES: 
@@ -413,7 +492,7 @@ int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 11h51 version
     
     fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
     int a=1; //overall gai~~~~~~~~Parameters 
-    int b=1; //angle gain~~~~~~~~~...........to test 
+    int b=4; //angle gain~~~~~~~~~...........to test 
     int c=1; //fwd gain~~~~~~~~~~~...................coefficients
         //TESTING {a,b,c}: 9am {1,2,1} = good; 10a  {1,1,2} = BAD, 10h05 {1,1,1} = also bad
     lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
