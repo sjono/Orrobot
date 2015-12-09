@@ -5,6 +5,8 @@
 // Date: Dec 03 2015
 // 12/08 5p JS - working on motor_run again
 // 12/08 8:30p JS - updated for tonights pool match
+// 12/08 9:40a JS - testing SEESPUCK >> PUCK2GOAL, reading cases with 7SEGMENT
+// 12/08 10a JS - Sees puck and switches to PUCK2GOAL, but turns TOO SLOWLY!
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -33,7 +35,7 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
 #define USB_DEBUG ON
 #define packet_length 10
 #define channel 1
-#define DUTYMAX 190
+#define DUTYMAX 180
 
 volatile char timer0_flag=0;
 volatile char front_switch = 0;
@@ -179,27 +181,49 @@ int main()
                 if (ADC_track[1]>100){  //If largest ADC value is above 100, go find the puck
                         state = SEESPUCK;}
                 break;
-                
-            case SEESPUCK:                 //Go directly to the puck
-                go2puck(puckangle);
-                if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid
-                /*if (ADC_read[0]>980){     //If center ADC reads HIGHEST VALUE, head to the goal
-                        state=GO2GOAL;}
-                if(ADC_track[1]<20){        //If ADC readings drop too low, search again
-                        state=SEARCH1;}*/
-                break;            
-            case PUCK2GOAL:
-                if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck
-                    state = SEESPUCK;}
-                go2goal(locate,goal_locate[2]);
-                sevensegdispl(9); //Number 9 means GO!
-                break;
+            
             case GO2GOAL: //Head to the goal
-                motor_run(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
+                motor_pd(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
+                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
+                set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 sevensegdispl(9); //Number 9 means GO!
                 //Going R? Move toward R goal, small turn radii
                 //Going L? Move toward R goal, small turn radii
+                break;
+    
+            case SEESPUCK:                 //Go directly to the puck
+                go2puck(puckangle);
+                
+                if(frontswitch > 20){
+                        state = PUCK2GOAL;}
+                if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
+                        ADC_track[3]+=1;}
+                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
+                        state = PUCK2GOAL;
+                        ADC_track[3] = 0;} //Reset ADC counter
+                /*if(ADC_track[1]<20){        //If ADC readings drop too low, search again
+                        ADC_track[3]-=1;}
+                if(ADC_track[3] < -50){
+                    state=SEARCH1;
+                    ADC_track[3] = 0;} //Reset ADC counter      */
+                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
+                    set(PORTB,4);}            //Fire solenoid (worked well 12/08)           */
+                sevensegdispl(4); //#4 Looks like a lower case c
+                break;            
+                
+            case PUCK2GOAL:
+                motor_pd(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
+                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
+                set(PORTC,6); set(PORTC,7); //Currently only drives forward                
+                if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
+                    ADC_track[3] -= 1;}
+                if (ADC_track[3] < -100){
+                    state = SEESPUCK;
+                    ADC_track[3] = 0;}      //Reset ADC counter                go2goal(locate,goal_locate[2]);
+                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
+                    set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!) */         
+
+                sevensegdispl(2); //#2 looks like a 9
                 break;
             default:
                     // search mode
@@ -380,10 +404,10 @@ void motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 01h21 versio
     dir_pd = (float) Kpdist*magnitude - (float) Kpdist*mag_old; //Ranges from -500 to 500
     
     fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
-    int a=1; //Parameters 
-    int b=2; //...........to test
-    int c=1; //...................coefficients
-    
+    int a=1; //overall gai~~~~~~~~Parameters 
+    int b=2; //angle gain~~~~~~~~~...........to test 
+    int c=1; //fwd gain~~~~~~~~~~~...................coefficients
+        //TESTING {a,b,c}: 9am {1,2,1} = good; 10a  {1,1,2} = BAD, 10h05 {1,1,1} = also bad
     lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
     rincrement += a*(b*right_step+c*fwd_step);
 //~~~~~~~~~~~STEP3: update variables~~~~~~~~~~~~~~~~~~
