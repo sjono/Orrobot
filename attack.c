@@ -14,9 +14,8 @@
 // 12/09 4:14p JS - removed OCR1A & OCR1B override - DUH! >> hopeless version
 // 12/09 9:50p JS - using PD code from 12/08
 // 12/09 11:14 JS - setting LED color with #define COLOR
-// 12/10 1:40a JS - adding stop for mid-point (depends on MIDDLESTOP) >> calls PUCK2PASS
-// 12/10 8:15a JS - works well w/out middlestop but could still score on our goal!
 // 12/10 8a JS - changed motor_pd coeff to a,b,c = {1,1,1}
+// 12/10 1:40a JS - adding stop for mid-point (depends on MIDDLESTOP) >> calls PUCK2PASS
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -181,9 +180,11 @@ int main()
                 else
                 {
                     if (color == BLUE){ //Leaves LED on after blinking
-                        set(PORTD,4);}
+                        set(PORTD,4);
+                        clear(PORTD,5);}
                     if (color == RED){
-                        set(PORTD,5);}
+                        set(PORTD,5);
+                        clear(PORTD,4);}
                 }
                 
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
@@ -272,7 +273,7 @@ int main()
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward                
                 if (ADC_read[0]>500){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
                     ADC_track[3] += 1;}
-                if (ADC_track[3] > 200){
+                 if (ADC_track[3] > 200){
                     state = SEESPUCK;}
                 sevensegdispl(5); 
                 break;
