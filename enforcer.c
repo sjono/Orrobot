@@ -7,6 +7,8 @@
 // 12/09 12p JS - added state = CLEARGOAL, and updated motor_pd to return magnitude
 // 12/09 1:30p JS - added puck_detect (looks at only 3 ADCs)
 // 12/09 3:30pm JS - fixed puck_detect code
+// 12/09 4:47pm JS - updated to start with SEESPUCK >> Puck2Goal, CLEARGOAL >> Puck2Goal
+// 12/09 5:50pm JS - readded CLEARGOAL RF command
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -37,7 +39,7 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
 #define packet_length 10
 #define channel 1
 //#define CLEARGOAL 60 //This should be in m_robockey, but just in case
-#define DUTYMAX 190
+#define DUTYMAX 180
 
 volatile char timer0_flag=0;
 volatile char front_switch = 0;
@@ -84,7 +86,7 @@ int main()
            
     while(1)
     {
-        //m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
+        m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
         if(timer0_flag==1)
         {
             timer0_flag=0; //Reset timer flag
@@ -122,9 +124,11 @@ int main()
                     case COMM:
                         state = COMM; blue_flag = 1; break;
                     case PLAY:
-                        state = GO2GOAL; break;
+                        state = SEESPUCK; break;
                     case PAUSE:
-                        state = PAUSE; break;}           
+                        state = PAUSE; break;
+                    case CLEARGOAL:
+                        state = CLEARGOAL; break;}           
             }
             
                         
@@ -141,7 +145,7 @@ int main()
                 //Calibrate goal location to be positive angle
 			    
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
-                //print_stuff(locate, goal_locate, ADC_read, puckangle, state);
+                print_stuff(locate, goal_locate, ADC_read, puckangle, state);
 //~~~~READINGS FROM MOTOR PD ~~~~TESTING ONLY~~~~~~~~~~~~~~~~~
                 //motor_pd(locate,goal_locate, locate_old); //FOR TESTING ONLY
                 //go2pduck(puckangle, locate, locate_old);
@@ -156,7 +160,7 @@ int main()
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
                     clear(PORTB,4);}
-                else set(PORTB,4); //This would trigger the solenoid to fire whenever goal calibrate runs
+                //else set(PORTB,4); //This would trigger the solenoid to fire whenever goal calibrate runs
                    
             }   //~~END Goal calibration re-run
             
@@ -197,6 +201,10 @@ int main()
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 break;
+                if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
+                        ADC_track[3]+=1;}
+                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
+                        state = PUCK2GOAL;}
                             
             case SEARCH1:       //Go to the center of the rink in search of the puck
                 centerpt[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
@@ -219,10 +227,11 @@ int main()
                 
                 if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
                         ADC_track[3]+=1;}
-                /*if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
+                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
                         state = PUCK2GOAL;
                         ADC_track[3] = 0;} //Reset ADC counter*/
                 sevensegdispl(4); //#4 Looks like a lower case c
+                OCR1A = 170, OCR1B = 170;
                 break;            
                 
             case PUCK2GOAL:

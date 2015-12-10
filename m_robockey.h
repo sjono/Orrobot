@@ -27,6 +27,8 @@
 #define DEFEND 45
 #define PUCK2GOAL 50
 #define CLEARGOAL 60
+#define PASSBEHIND 65
+#define RESETLOCATION 70
 
 char localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
