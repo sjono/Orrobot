@@ -1,21 +1,10 @@
 // -----------------------------------------------------------------------------
-// Orrobot Attacker Game-on
+// Orrobot Attacker Game-on V2
 // Version: 0.1
 // Author: Jono / Aditya
-// Date: Dec 03 2015
-// 12/08 5p JS - working on motor_run again
-// 12/08 8:30p JS - updated for tonights pool match
-// 12/09 9:40a JS - testing SEESPUCK >> PUCK2GOAL, reading cases with 7SEGMENT
-// 12/09 10a JS - Sees puck and switches to PUCK2GOAL, but turns TOO SLOWLY!
-// 12/09 10:30 JS - fixing motor_pd, to use distance_error >> not fast enough to turn back
-// 12/09 1:31 JS - included puck_detect locally (specific to attacker)
-// 12/09 1:45 JS - Rolling back motor_pd() version to simplify for pool play
-// 12/09 2:30 JS - updated version for Pool Play (solenoid fires in Puck2Goal)
-// 12/09 4:14p JS - removed OCR1A & OCR1B override - DUH! >> hopeless version
-// 12/09 9:50p JS - using PD code from 12/08
-// 12/09 11:14 JS - setting LED color with #define COLOR
-// 12/10 8a JS - changed motor_pd coeff to a,b,c = {1,1,1}
-// 12/10 1:40a JS - adding stop for mid-point (depends on MIDDLESTOP) >> calls PUCK2PASS
+// Date: Dec 10
+// 12/10 11a JS - made it
+// 12/10 12:42 - OK, updating solenoid firing timing
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -43,7 +32,7 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ATT
 #define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
 #define USB_DEBUG ON
-#define MIDDLESTOP OFF
+#define MIDDLESTOP ON
 #define packet_length 10
 #define channel 1
 #define DUTYMAX 180
@@ -74,7 +63,7 @@ int main()
     int locate_old[3]; //Stores old location values
     int goal_locate[3]; //Stores X, Y, angle to the goal
     int centerpt[3] = {0, 0, 0};     //Stores X, Y, angle to center point
-    int clearpt[4] = {-150, -20, 0, 0};     //Clearing start point : make sure this is a good location!
+    int clearpt[4] = {-100, 0, 0, 0};     //Clearing start point : make sure this is a good location!
     int target[4] = {30,100,0,0};   //Location to send puck
     int state = PAUSE;          //INTIALIZE in PAUSE mode
     int blue_flag = 0;
@@ -93,12 +82,12 @@ int main()
     if (goal_locate[0] > 0)  //Going RIGHT
     {
             target[0] = 30;       //Update locations to send puck
-            clearpt[0] = 150;      //Negative X is defended
+            clearpt[0] = 100;      //Negative X is defended
     }
     if (goal_locate[0] < 0)  //Going LEFT
     {
             target[0] = -30;         //Positive X is defended
-            clearpt[0] = -150;     
+            clearpt[0] = -100;     
     }
     
     if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
@@ -180,11 +169,9 @@ int main()
                 else
                 {
                     if (color == BLUE){ //Leaves LED on after blinking
-                        set(PORTD,4);
-                        clear(PORTD,5);}
+                        set(PORTD,4);}
                     if (color == RED){
-                        set(PORTD,5);
-                        clear(PORTD,4);}
+                        set(PORTD,5);}
                 }
                 
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
@@ -215,33 +202,28 @@ int main()
                 motor_stop();
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
-                
-            case SEARCH1:       //Go to the center of the rink in search of the puck
-                centerpt[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
-                go2goal(locate,centerpt[2]); //Start moving toward the center to find the puck
-                if (ADC_track[1]>100){  //If largest ADC value is above 100, go find the puck
-                        state = SEESPUCK;}
-                break;
             
-            case GO2GOAL: //Head to the goal
-                motor_pd(locate, goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
+            case GO2GOAL: //Go halfway to opposing team's goal
+                if (motor_pd(locate, clearpt, locate_old) < 20){
+                    state = SEESPUCK;} //TURNED OFF FOR TESTIN!!!!
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
-                set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 sevensegdispl(9); //Number 9 means GO!
                 //Going R? Move toward R goal, small turn radii
                 //Going L? Move toward R goal, small turn radii
+                sevensegdispl(2); //#2 looks like a 9
                 break;
     
             case SEESPUCK:                 //Go directly to the puck
+            //~~1~~~~ GO TOWARD THE PUCK
                 go2puck(puckangle);
-                
-                if(frontswitch > 20){
-                        state = PUCK2GOAL;}
-                if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
-                        ADC_track[3]+=1;}
-                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
-                        state = PUCK2GOAL;
-                        ADC_track[3] = 0;} //Reset ADC counter
+                OCR1A = DUTYMAX, OCR1B = DUTYMAX;
+            //~~2~~~~ TAKE PUCK TO GOAL IF LOTS OF GOOD READINGS
+                if (ADC_read[0]>700){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
+                    ADC_track[3] += 1;}
+                else ADC_track[3] -= 1;
+                if (ADC_track[3] > 100){    //make sure this is not too sensitive
+                    state = PUCK2GOAL;}
+            //~~3~~~~ GO BACK TO MIDDLE IF TRYING TO CROSS OVER~~~~
                 if(MIDDLESTOP) //TO STAY BEHIND MIDDLE LINE (see #define above)
                 {
                     if ((goal_locate[0]<0) && (locate[0]< 20)) //Going LEFT && close to middle line
@@ -252,64 +234,61 @@ int main()
                     {
                        locate_ct+=1; 
                     }
-                    else locate_ct = 0;
-                    if (locate_ct > 50)
+                    else locate_ct -= 10;
+                    if (locate_ct > 200) //50 was too low, 500 was too high, 200 is OK
                     {
                         if(motor_slow()){
-                            state = PUCK2PASS;}
+                            state = GO2GOAL;}
                         locate_ct = 0;
                     }
                 }
-                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid (moved to the Puck2Goal state)*/           
-                sevensegdispl(4); //#4 Looks like a lower case c
-                OCR1A = DUTYMAX, OCR1B = DUTYMAX;
-                break;            
-            
-            case PUCK2PASS:
-                if (motor_pd(locate,target, locate_old)<20){ //Send the bot to target location
-                    target[3]+=1;}
-                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
-                set(PORTC,6); set(PORTC,7); //Currently only drives forward                
-                if (ADC_read[0]>500){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
-                    ADC_track[3] += 1;}
-                 if (ADC_track[3] > 200){
-                    state = SEESPUCK;}
-                sevensegdispl(5); 
-                break;
+                sevensegdispl(4); //#2 looks like a 9
+                
+                break;   
                 
             case PUCK2GOAL:
-                motor_pd(locate,goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
+            //~~1~~~~ GO TOWARD THE GOAL
+                if (motor_pd(locate,goal_locate, locate_old) < 50){     //When the puck has been on the bot for a while
+                    locate_ct+=1;}
+                else locate_ct-=1; //TURNED OFF FOR TESTIN!!!!
+                if (locate[3] < 0){ //Keep locate[3] positive!
+                        locate[3] = 0;}
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward                
+            //~~2~~~~ SEEK PUCK IF ADC READINGS ARE TOO LOC
                 if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
                     ADC_track[3] -= 1;}
                 if (ADC_track[3] < -100){
                     state = SEESPUCK;
                     ADC_track[3] = 0;}      //Reset ADC counter                go2goal(locate,goal_locate[2]);
-                if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!)
-
+            //~~3~~~~ FIRE SOLENOID IF CLOSE TO THE GOAL~~~~    
+                if (locate_ct > 500){     //When the puck has been on the bot for a while
+                    set(PORTB,4);            //Fire solenoid (12/09 10a - fires too soon!)
+                    locate_ct = 0;}
+            //~~4~~~~ GO BACK TO MIDDLE IF TRYING TO CROSS OVER~~~~    
+                if(MIDDLESTOP) //TO STAY BEHIND MIDDLE LINE (see #define above)
+                {
+                    if ((goal_locate[0]<0) && (locate[0]< 20)) //Going LEFT && close to middle line
+                    {
+                        locate_ct+=1;
+                    }
+                    else if ((goal_locate[0]>0)&& (locate[0]>-20))  //Going RIGHT 
+                    {
+                       locate_ct+=1; 
+                    }
+                    else locate_ct -= 10;
+                    if (locate_ct > 200) //50 was too low, 500 was too high, 200 is OK
+                    {
+                        if(motor_slow()){
+                            state = GO2GOAL;}
+                        locate_ct = 0;
+                    }
+                }
+                
                 sevensegdispl(3); //#2 looks like a 9
                 break;
                 
-            case CLEARGOAL: //Go towards GOAL and CLEAR!
-                if (motor_pd(locate, clearpt, locate_old) < 20){ //FIRST GO TO CLEAR POINT
-                    clearpt[3] += 1;
-                    sevensegdispl(2);} //#2 looks like a 9
-                if (clearpt[3] > 100){      //NEXT SWEEP!
-                    clearpt[1] = -clearpt[0];  //Go to opposite Y-value
-                    clearpt[3] = 0;}
-                if(clearpt[1] > 0){
-                    sevensegdispl(2);} //#2 looks like a 9
-                else sevensegdispl(4); //#4 Looks like a lower case c;
-                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
-                set(PORTC,6); set(PORTC,7); //Currently only drives forward
-                break;
-            default:
                 
-                    // search mode
-                break;   
         }   //~~~~~~~~~~~~~~~~~~END SWITCH STATEMENT~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     } //~~~~END MAIN WHILE LOOP~~~~~~~~~~~~~~~~~~~~~~~~
@@ -482,7 +461,7 @@ int motor_pd(int*locate, int*goal_locate, int*locate_old)
     
     fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
     int a=1; //Parameters 
-    int b=1; //...........to test           //12/10 *am - tryin
+    int b=2; //...........to test           //12/10 *am - tryin
     int c=1; //...................coefficients
     
     lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
@@ -710,5 +689,4 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
     
     m_usb_tx_string("STATE IS "); m_usb_tx_int(state); m_usb_tx_string("\n");   
 }
-
 
