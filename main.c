@@ -1,14 +1,19 @@
 // -----------------------------------------------------------------------------
-// Orrobot Enforcer Game-on
+// Orrobot Attacker Game-on
 // Version: 0.1
 // Author: Jono / Aditya
-// Date: Dec 09 2015
-// 12/09 9a JS - begun testing on this
-// 12/09 12p JS - added state = CLEARGOAL, and updated motor_pd to return magnitude
-// 12/09 1:30p JS - added puck_detect (looks at only 3 ADCs)
-// 12/09 3:30pm JS - fixed puck_detect code
-// 12/09 4:47pm JS - updated to start with SEESPUCK >> Puck2Goal, CLEARGOAL >> Puck2Goal
-// 12/09 5:50pm JS - readded CLEARGOAL RF command
+// Date: Dec 03 2015
+// 12/08 5p JS - working on motor_run again
+// 12/08 8:30p JS - updated for tonights pool match
+// 12/09 9:40a JS - testing SEESPUCK >> PUCK2GOAL, reading cases with 7SEGMENT
+// 12/09 10a JS - Sees puck and switches to PUCK2GOAL, but turns TOO SLOWLY!
+// 12/09 10:30 JS - fixing motor_pd, to use distance_error >> not fast enough to turn back
+// 12/09 1:31 JS - included puck_detect locally (specific to attacker)
+// 12/09 1:45 JS - Rolling back motor_pd() version to simplify for pool play
+// 12/09 2:30 JS - updated version for Pool Play (solenoid fires in Puck2Goal)
+// 12/09 4:14p JS - removed OCR1A & OCR1B override - DUH! >> hopeless version
+// 12/09 9:50p JS - using PD code from 12/08
+// 12/09 11:14 JS - setting LED color with #define COLOR
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -22,13 +27,15 @@ void motor_run(int* location, int* goallocation, int motordir);
 //Runs the bot toward the goal location based upon the angle
 int motor_pd(int*locate, int*goal_locate, int*locate_old);
 //Looks at the location with respect to the goal location and rotates based on PD feedback (12/09 01h21 version JS)
+void go2pduck(int puckangle, int* locate, int*locate_old);
+//Looks at puck angle and determines where to go (12/09 09h21 version JS)
 void send(int x, int y, int theta); //**REQUIRES that TXaddress, packet_length already set
 //Sends x, y, theta location info via RF to other M2
-int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ENFORCER
-//Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
-
 void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int state);
 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
+
+int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ATTACKER
+//Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
 
 
 #define RFOVERRIDE OFF
@@ -38,16 +45,15 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
 #define USB_DEBUG ON
 #define packet_length 10
 #define channel 1
-//#define CLEARGOAL 60 //This should be in m_robockey, but just in case
-#define DUTYMAX 180
+#define DUTYMAX 170
 
 volatile char timer0_flag=0;
 volatile char front_switch = 0;
 volatile char back_switch = 0;
 volatile char read_flag=0;      //Triggered whenever RF reads something
 volatile int frontswitch=0;    //Front switch flag
-int RXaddress = 0x4D;   //Address for ENFORCER
-int TXaddress = 0x4C;   //Transfer to ATTACKER
+int TXaddress = 0x4F;
+int RXaddress = 0x4C;
 unsigned char buffer[packet_length];
 
 //     ^ quad guide:
@@ -60,7 +66,7 @@ unsigned char buffer[packet_length];
 
 int main()
 {
-    int color = RED;
+    int color = BLUE;
     m_red(ON); //If only red is on, still initializing
     m_wait(50); //Wait to be sure no hands are above the mWii
     int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
@@ -87,7 +93,7 @@ int main()
            
     while(1)
     {
-        m_red(OFF); //m_red is turned off if the bot starts in the L side of the rink
+        m_red(OFF); //m_red is turned off after intialization
         if(timer0_flag==1)
         {
             timer0_flag=0; //Reset timer flag
@@ -95,11 +101,7 @@ int main()
             for (i=0; i < 4; i++){ //Store old localization values
                 locate_old[i] = locate[i];}
             localize(locate);//Run localize to determine the bot's location
-            //locate[2] -= 90;
-            /*while (locate[2] > 180){
-                locate[2]-=360;}
-            while (locate[2] < -180){
-                locate[2]+=360;}*/
+
 			
             //send(locate[0], locate[1], locate[2]); //Sends location data to another M2
             
@@ -127,9 +129,7 @@ int main()
                     case PLAY:
                         state = SEESPUCK; break;
                     case PAUSE:
-                        state = PAUSE; break;
-                    case CLEARGOAL:
-                        state = CLEARGOAL; break;}           
+                        state = PAUSE; break;}           
             }
             
                         
@@ -140,30 +140,25 @@ int main()
             else   //Rerun goal calibrate every X milliseconds cycle
             {
                 j=0; //Reset counter
-                goal_locate[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;
+                goal_locate[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
+                //Calibrate goal location to be positive angle
                 clearpt[2] = 180+atan2(locate[1]-clearpt[1],locate[0]-clearpt[0])*180/3.14;
                 centerpt[2] = 180+atan2(locate[1]-centerpt[1],locate[0]-centerpt[0])*180/3.14;
-                //Calibrate goal location to be positive angle
-			    
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
                 print_stuff(locate, goal_locate, ADC_read, puckangle, state);
-//~~~~READINGS FROM MOTOR PD ~~~~TESTING ONLY~~~~~~~~~~~~~~~~~
-                //motor_pd(locate,goal_locate, locate_old); //FOR TESTING ONLY
-                //go2pduck(puckangle, locate, locate_old);
-//~~~~END READINGS FROM MOTOR PD ~~~~TESTING ONLY~~~~~~~~~~~~~~~~~
-                
+                               
                 if (blue_flag) //Called only in COMM mode
                 {
-                    if (color == RED)
+                    if (color == BLUE)
                     {                        
-                        if (check(PORTD,4)){ //Toggle red LED (D4)
+                        if (check(PORTD,4)){ //Toggle blue LED (D4)
                         clear(PORTD,4);}
                         else set(PORTD,4);
-                        blue_flag++; //Toggle red led to indicate COMM mode
+                        blue_flag++; //Toggle BLUE led to indicate COMM mode
                     }
-                    if (color == BLUE)
+                    if (color == RED)
                     {
-                        if (check(PORTD,5)){ //Toggle blue LED (D5)
+                        if (check(PORTD,5)){ //Toggle red LED (D5)
                         clear(PORTD,5);}
                         else set(PORTD,5);
                         blue_flag++;
@@ -171,11 +166,12 @@ int main()
                 } // END blue_flag
                 else
                 {
-                    if (color == RED){ //Leaves LED on after blinking
+                    if (color == BLUE){ //Leaves LED on after blinking
                         set(PORTD,4);}
-                    if (color == BLUE){
+                    if (color == RED){
                         set(PORTD,5);}
                 }
+                
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
                     clear(PORTB,4);}
@@ -201,11 +197,62 @@ int main()
                 break;
                 
             case PAUSE:  //Listen for signal sent by the game
-                clear(PORTD,4);
                 motor_stop();
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
+                
+            case SEARCH1:       //Go to the center of the rink in search of the puck
+                centerpt[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
+                go2goal(locate,centerpt[2]); //Start moving toward the center to find the puck
+                if (ADC_track[1]>100){  //If largest ADC value is above 100, go find the puck
+                        state = SEESPUCK;}
+                break;
             
+            case GO2GOAL: //Head to the goal
+                motor_pd(locate, goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
+                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
+                set(PORTC,6); set(PORTC,7); //Currently only drives forward
+                sevensegdispl(9); //Number 9 means GO!
+                //Going R? Move toward R goal, small turn radii
+                //Going L? Move toward R goal, small turn radii
+                break;
+    
+            case SEESPUCK:                 //Go directly to the puck
+                go2puck(puckangle);
+                
+                if(frontswitch > 20){
+                        state = PUCK2GOAL;}
+                if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
+                        ADC_track[3]+=1;}
+                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
+                        state = PUCK2GOAL;
+                        ADC_track[3] = 0;} //Reset ADC counter
+                /*if(ADC_track[1]<20){        //If ADC readings drop too low, search again
+                        ADC_track[3]-=1;}
+                if(ADC_track[3] < -50){
+                    state=SEARCH1;
+                    ADC_track[3] = 0;} //Reset ADC counter      */
+                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
+                    set(PORTB,4);}            //Fire solenoid (moved to the Puck2Goal state)*/           
+                sevensegdispl(4); //#4 Looks like a lower case c
+                OCR1A = 180, OCR1B = 180;
+                break;            
+                
+            case PUCK2GOAL:
+                motor_pd(locate,goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
+                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
+                set(PORTC,6); set(PORTC,7); //Currently only drives forward                
+                if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
+                    ADC_track[3] -= 1;}
+                if (ADC_track[3] < -100){
+                    state = SEESPUCK;
+                    ADC_track[3] = 0;}      //Reset ADC counter                go2goal(locate,goal_locate[2]);
+                if (frontswitch > 200){     //When the puck has been on the bot for a while
+                    set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!)
+
+                sevensegdispl(2); //#2 looks like a 9
+                break;
+                
             case CLEARGOAL: //Go towards GOAL and CLEAR!
                 if (motor_pd(locate, clearpt, locate_old) < 20){ //FIRST GO TO CLEAR POINT
                     clearpt[3] += 1;
@@ -219,59 +266,14 @@ int main()
                 set(DDRB,5);set(DDRB,6);    //Make sure motors are on
                 set(PORTC,6); set(PORTC,7); //Currently only drives forward
                 break;
-                if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
-                        ADC_track[3]+=1;}
-                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
-                        state = PUCK2GOAL;}
-                            
-            case SEARCH1:       //Go to the center of the rink in search of the puck
-                centerpt[2]=180+atan2(locate[1]-goal_locate[1],locate[0]-goal_locate[0])*180/3.14;	
-                go2goal(locate,centerpt[2]); //Start moving toward the center to find the puck
-                if (ADC_track[1]>100){  //If largest ADC value is above 100, go find the puck
-                        state = SEESPUCK;}
-                break;
-            
-            case GO2GOAL: //Head to the goal
-                motor_pd(locate,goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
-                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
-                set(PORTC,6); set(PORTC,7); //Currently only drives forward
-                sevensegdispl(9); //Number 9 means GO!
-                //Going R? Move toward R goal, small turn radii
-                //Going L? Move toward R goal, small turn radii
-                break;
-    
-            case SEESPUCK:                 //Go directly to the puck
-                go2puck(puckangle);
+            default:
                 
-                if(ADC_track[1]>1000){ //Count if ADC readings are LARGE (means close to puck)
-                        ADC_track[3]+=1;}
-                if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
-                        state = PUCK2GOAL;
-                        ADC_track[3] = 0;} //Reset ADC counter*/
-                sevensegdispl(4); //#4 Looks like a lower case c
-                OCR1A = 170, OCR1B = 170;
-                break;            
-                
-            case PUCK2GOAL:
-                motor_pd(locate,goal_locate, motordir); //TURNED OFF FOR TESTIN!!!!
-                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
-                set(PORTC,6); set(PORTC,7); //Currently only drives forward                
-                if (ADC_read[0]<700){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
-                    ADC_track[3] -= 1;}
-                if (ADC_track[3] < -100){
-                    state = SEESPUCK;
-                    ADC_track[3] = 0;}      //Reset ADC counter                go2goal(locate,goal_locate[2]);
-                /*if (frontswitch > 200){     //When the puck has been on the bot for a while
-                    set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!) */         
-
-                sevensegdispl(2); //#2 looks like a 9
-                break;
-        
+                    // search mode
+                break;   
         }   //~~~~~~~~~~~~~~~~~~END SWITCH STATEMENT~~~~~~~~~~~~~~~~~~~~~~~~~~~
         
         if(OVERSTATE){  //Override code to keep the bot in one particular state
             state = OVERSTATE;}
-        //OCR1A = 180; OCR1B = 180;
     } //~~~~END MAIN WHILE LOOP~~~~~~~~~~~~~~~~~~~~~~~~
 }
 
@@ -399,10 +401,161 @@ void motor_run(int*location, int*goallocation, int motordir)
     OCR1B = 130;
 
 }
+int motor_pd(int*locate, int*goal_locate, int*locate_old)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~ PD CODE TESTIN~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{ //Looks at the location with respect to the goal location and rotates if necesary
+    
+    //~~~VARIABLES: 
+    //location_pd[0] = angular feedback L wheel, location_pd[1] = angular feedback R wheel;
+    //location_pd[2] = directional feedback BOTH wheel
 
-int puck_detect(int* ADC_read, int* ADC_track, int puckangle) //FOR ENFORCER
-//IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **On Attacker, F6 is not reading
-//ANGLES: (30 0 -- -30 -- -- -- -- --)
+//~~~~~~~~~~~STEP1: compare angles~~~~~~~~~~~~~~~~~~
+    float Kp = 2; float Kd = 0.5; 
+    int angle_pd = 0; int dir_pd;
+    int left_step; int right_step; int fwd_step;
+    int angle_target; int angle_change; int magnitude; int mag_old;
+    int lincrement = OCR1A; int rincrement = OCR1B;
+    
+    angle_target = goal_locate[2]-locate[2];
+    angle_change = locate[2]-locate_old[2];
+    
+    angle_pd = (float) Kp * angle_target - (float) Kd * angle_change;
+    
+    angle_pd = angle_pd*100/360; //Gives a reading from 0 to 100
+        
+                                    //Left and right Confirmed for attacker (12/08 6pm JS)
+    left_step = -(float) angle_pd*2/10;    //+Left means turning CCW, decreases angle (by max of 2)
+    right_step = (float) angle_pd*2/10;          //+Right means CW, increases angle (by max of 2)
+        
+//~~~~~~~~~~~STEP2: compare location~~~~~~~~~~~~~~~~~~
+    
+    magnitude = (float)(locate[0] - goal_locate[0])/1000*(locate[0] - goal_locate[0]); //Divide by 1000 to keep < 64000
+    magnitude += (locate[1] - goal_locate[1])/1000*(locate[1] - goal_locate[1]);
+    magnitude = (float) 10 * sqrt(magnitude);
+    
+    mag_old = (float)(locate[0] - locate_old[0])*(locate[0] - locate_old[0]);
+    mag_old -= (locate[1] - locate_old[1])*(locate[1] - locate_old[1]);
+    mag_old = (float) sqrt(mag_old);
+
+    
+    
+    dir_pd = (float) Kp*magnitude - (float) Kp*mag_old; //Ranges from -500 to 500
+    
+    fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
+    int a=1; //Parameters 
+    int b=2; //...........to test
+    int c=1; //...................coefficients
+    
+    lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
+    rincrement += a*(b*right_step+c*fwd_step);
+//~~~~~~~~~~~STEP3: update variables~~~~~~~~~~~~~~~~~~
+    
+    if (lincrement < DUTYMAX)
+    {
+        if ((lincrement) < 0){
+                OCR1A = 0;}
+        else OCR1A = lincrement;
+    }
+    else OCR1A = DUTYMAX;
+    if (rincrement < DUTYMAX)
+    {
+        if ((rincrement) < 0){  
+                OCR1B = 0;}
+        else OCR1B = rincrement;
+    }
+    else OCR1B = DUTYMAX;
+    
+    
+    //~~~~~~~~~~~~PRINT STUFF~~~~~~~~~~~~~~
+    
+    m_usb_tx_string("Present Loc (X,Y, theta): ("); 
+    m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
+    m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
+    m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
+    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
+    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
+    m_usb_tx_string(") \n");
+    m_usb_tx_string("Magnitude:  ");  m_usb_tx_int(magnitude); m_usb_tx_string("\n");
+    m_usb_tx_string("Mag_old:  ");  m_usb_tx_int(mag_old); m_usb_tx_string("\n");
+    m_usb_tx_string("Dir_pd [ KP*mag - KP*mag_old ]:  ");  m_usb_tx_int(dir_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("Angle PD:  ");  m_usb_tx_int(angle_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("Left Step:  ");  m_usb_tx_int(left_step); m_usb_tx_string("\n");
+    m_usb_tx_string("Right Step:  ");  m_usb_tx_int(right_step); m_usb_tx_string("\n");
+    m_usb_tx_string("FWD Step:  ");  m_usb_tx_int(fwd_step); m_usb_tx_string("\n");
+    m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); m_usb_tx_string("\n");
+    m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
+
+    return magnitude;
+}
+void go2pduck(int puckangle, int* locate, int*locate_old) //12/09 9h21 version JS
+//Move towards the puck with proportional and derivative feedback
+{
+	int j;
+      
+    //~~~~~~~~~~~STEP1: compare angles~~~~~~~~~~~~~~~~~~
+    float Kp = 2; float Kd = 0.5; 
+    int angle_pd = 0;
+    int old1A=OCR1A; int old1B=OCR1B;
+    int left_step; int right_step;
+    int angle_change;
+    int lincrement = OCR1A; int rincrement = OCR1B; //Stores old DUTY cycle value
+    
+    angle_change = locate[2]-locate_old[2];
+    
+    angle_pd = (float) Kp * puckangle - (float) Kd * angle_change; //Gives a reading from 0 to 90
+    
+    if(!check(PORTC,6)){
+        old1A = -OCR1A;}
+   if(!check(PORTC,7)){
+        old1B = -OCR1B;}
+                                    //Left and right Confirmed for attacker (12/08 6pm JS)
+    left_step = old1A+(float) angle_pd*5/100;    //+Left means turning CCW, decreases angle (by max of 2)
+    right_step = old1B-(float) angle_pd*5/100;          //+Right means CW, increases angle (by max of 2)
+
+        
+        //~~~~~~~~~~~STEP2: compare location~~~~~~~~~~~~~~~~~~
+        //Code to set OCR1A and INV_pins as necessary if left_step +/- and so on
+    
+    if ((left_step < DUTYMAX) && (left_step > -DUTYMAX))
+        {
+            m_usb_tx_string("DUTYMAX CHECK WORKED for LEFT \n");
+            if (left_step > 0){     //FORWARD
+                set(PORTC,6);       //Left is C6 is OCR1A (B5)
+                OCR1A = left_step;} 
+            else{                   //BACKWARDS
+                clear(PORTC,6);   
+                OCR1A = -left_step;}
+        }
+
+
+    if ((right_step < DUTYMAX) && (right_step > -DUTYMAX))
+        {
+            m_usb_tx_string("DUTYMAX CHECK WORKED for RIGHT \n");    
+            if (right_step > 0){        //FORWARD
+                set(PORTC,7);           //Right is C7 is OCR1B (B6)
+                OCR1B = right_step;} 
+            else{                   //BACKWARDS
+                clear(PORTC,7);
+                OCR1B = -right_step;}
+        }
+      
+      m_usb_tx_string("angle_change:  ");  m_usb_tx_int(angle_change); m_usb_tx_string("\n");
+    m_usb_tx_string("angle_pd:  ");  m_usb_tx_int(angle_pd); m_usb_tx_string("\n");
+    m_usb_tx_string("left_step:  ");  m_usb_tx_int(left_step); m_usb_tx_string("\n");
+    m_usb_tx_string("right step:  ");  m_usb_tx_int(right_step); m_usb_tx_string("\n");
+    m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); 
+    if (check(PORTC,6)){ m_usb_tx_string("    FORWARD\n");}
+    else m_usb_tx_string("    BACKWARD\n");
+    m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B);
+    if (check(PORTC,7)){ m_usb_tx_string("    FORWARD\n");}
+    else m_usb_tx_string("    BACKWARD\n");
+    
+}
+
+int puck_detect(int* ADC_read, int* ADC_track, int puckangle) //FOR ATTACKER
+//NEW2 IR Readings:   (F5  F6  D7 D6 F0 F7 F1  F4) **On Attacker, F6 is not reading
+//NEW1 ANGLES: (0 +45 +90 +135 +180 -135 -135 -90 -45)
 
 {
     int i;
@@ -457,11 +610,11 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle) //FOR ENFORCER
                     ADC_track[1] = ADC_read[i];}} //Store max reading into ADC_max location
             
             
-            if (ADC_track[2] == 0){ //IF MAX POINT IS (+) turn right
-                puckangle = 90;}
-            else if(ADC_track[2] == 1){    //MAX POINT IS 0 MEANS GO STRAIGHT!
+            if (ADC_track[2] > 4){ //IF MAX POINT IS (+) turn right
+                puckangle = -90;}
+            else if(ADC_track[2] == 0){    //MAX POINT IS 0 MEANS GO STRAIGHT!
                  puckangle = 0;}
-            else puckangle = -90; //IF MAX POINT IS (-) turn left
+            else puckangle = 90; //IF MAX POINT IS (-) turn left
             ADC_track[1] = 0;          //RESET ADC_max VALUE and FLAG
         }  
         
@@ -469,92 +622,6 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle) //FOR ENFORCER
 }
 
 
-int motor_pd(int*locate, int*goal_locate, int*locate_old)  //12/09 12h40 version JS testing
-{ //Looks at the location with respect to the goal location and rotates if necesary
-    
-    //~~~VARIABLES: 
-    //location_pd[0] = angular feedback L wheel, location_pd[1] = angular feedback R wheel;
-    //location_pd[2] = directional feedback BOTH wheel
-
-//~~~~~~~~~~~STEP1: compare angles~~~~~~~~~~~~~~~~~~
-    float Kpangl = 2; float Kdangl = 0.2;   //BEST: Kd = 0.5; trying larger and smaller (BAD) values
-    float Kpdist = 2; float Kddist = 0.2;   //BEST: Kd = 0.5
-    int angle_pd = 0; int dir_pd; int dir_error;
-    int left_step; int right_step; int fwd_step;
-    int angle_target; int angle_change; int magnitude; int mag_old;
-    int lincrement = OCR1A; int rincrement = OCR1B;
-    
-    angle_target = goal_locate[2]-locate[2];
-    angle_change = locate[2]-locate_old[2];
-    
-    angle_pd = (float) Kpangl*angle_target - (float) Kdangl*angle_change;
-    
-    angle_pd = angle_pd*100/360; //Gives a reading from 0 to 100
-        
-                                    //Left and right Confirmed for attacker (12/08 6pm JS)
-    left_step = -(float) angle_pd*2/10;    //+Left means turning CCW, decreases angle (by max of 2)
-    right_step = (float) angle_pd*2/10;          //+Right means CW, increases angle (by max of 2)
-        
-//~~~~~~~~~~~STEP2: compare location~~~~~~~~~~~~~~~~~~
-    
-    magnitude = (float)(locate[0] - goal_locate[0])/1000*(locate[0] - goal_locate[0]); //Divide by 1000 to keep < 64000
-    magnitude += (locate[1] - goal_locate[1])/1000*(locate[1] - goal_locate[1]);
-    magnitude = (float) 10 * sqrt(magnitude);
-    
-    mag_old = (float)(locate[0] - locate_old[0])*(locate[0] - locate_old[0]);
-    mag_old -= (locate[1] - locate_old[1])*(locate[1] - locate_old[1]);
-    mag_old = (float) sqrt(mag_old);
-    
-    dir_error = cos(angle_target*3.14/180)*magnitude;    //Weight the magnitude by the angle to goal (180 means NEG!)
-    dir_pd = (float) Kpdist*dir_error;              //Calculate feedback
-    dir_pd -= (float) Kddist*(magnitude-mag_old); //Add in derivative feedback
-    
-    fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
-    int a=1; //overall gai~~~~~~~~Parameters 
-    int b=4; //angle gain~~~~~~~~~...........to test 
-    int c=1; //fwd gain~~~~~~~~~~~...................coefficients
-        //TESTING {a,b,c}: 9am {1,2,1} = good; 10a  {1,1,2} = BAD, 10h05 {1,1,1} = also bad
-    lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
-    rincrement += a*(b*right_step+c*fwd_step);
-//~~~~~~~~~~~STEP3: update variables~~~~~~~~~~~~~~~~~~
-    
-    if (lincrement < DUTYMAX)
-    {
-        if ((lincrement) < 0){
-                OCR1A = 0;}
-        else OCR1A = lincrement;
-    }
-    else OCR1A = DUTYMAX;
-    if (rincrement < DUTYMAX)
-    {
-        if ((rincrement) < 0){  
-                OCR1B = 0;}
-        else OCR1B = rincrement;
-    }
-    else OCR1B = DUTYMAX;
-    
-    //~~~~~~~~~~~~PRINT STUFF~~~~~~~~~~~~~~
-    
-    m_usb_tx_string("Present Loc (X,Y, theta): ("); 
-    m_usb_tx_int(locate[0]); m_usb_tx_string(", "); m_usb_tx_int(locate[1]); 
-    m_usb_tx_string(", "); m_usb_tx_int(locate[2]); m_usb_tx_string(") \n");
-    m_usb_tx_string("Goal angle (X,Y, theta): ("); m_usb_tx_int(goal_locate[0]);        
-    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[1]);
-    m_usb_tx_string(", "); m_usb_tx_int(goal_locate[2]);
-    m_usb_tx_string(") \n");
-    m_usb_tx_string("Magnitude:  ");  m_usb_tx_int(magnitude); m_usb_tx_string("\n");
-    m_usb_tx_string("Mag_old:  ");  m_usb_tx_int(mag_old); m_usb_tx_string("\n");
-    m_usb_tx_string("Dir_error [ mag*cos(angle) ]:  ");  m_usb_tx_int(dir_error); m_usb_tx_string("\n");
-    m_usb_tx_string("Dir_pd [ KP*dir_error - KP*mag_old ]:  ");  m_usb_tx_int(dir_pd); m_usb_tx_string("\n");
-    m_usb_tx_string("Angle PD:  ");  m_usb_tx_int(angle_pd); m_usb_tx_string("\n");
-    m_usb_tx_string("Left Step:  ");  m_usb_tx_int(left_step); m_usb_tx_string("\n");
-    m_usb_tx_string("Right Step:  ");  m_usb_tx_int(right_step); m_usb_tx_string("\n");
-    m_usb_tx_string("FWD Step:  ");  m_usb_tx_int(fwd_step); m_usb_tx_string("\n");
-    m_usb_tx_string("OCR1A (L wheel):  ");  m_usb_tx_int(OCR1A); m_usb_tx_string("\n");
-    m_usb_tx_string("OCR1B (R wheel):  ");  m_usb_tx_int(OCR1B); m_usb_tx_string("\n");
-
-    return magnitude;
-}
 
 void send(int x, int y, int z) //
 {
@@ -605,3 +672,5 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
     
     m_usb_tx_string("STATE IS "); m_usb_tx_int(state); m_usb_tx_string("\n");   
 }
+
+

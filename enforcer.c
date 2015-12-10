@@ -60,6 +60,7 @@ unsigned char buffer[packet_length];
 
 int main()
 {
+    int color = BLUE;
     m_red(ON); //If only red is on, still initializing
     m_wait(50); //Wait to be sure no hands are above the mWii
     int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
@@ -151,12 +152,32 @@ int main()
                 //go2pduck(puckangle, locate, locate_old);
 //~~~~END READINGS FROM MOTOR PD ~~~~TESTING ONLY~~~~~~~~~~~~~~~~~
                 
-                if (blue_flag){ //Called only in COMM mode
-                    if (check(PORTD,4)){ //Toggle blue LED (D5)
-                    clear(PORTD,4);}
-                    else set(PORTD,4);
-                    blue_flag++;} //Toggle BLUE led to indicate COMM mode
-                
+                if (blue_flag) //Called only in COMM mode
+                {
+                    if (color == BLUE)
+                    {                        
+                        if (check(PORTD,4)){ //Toggle blue LED (D4)
+                        clear(PORTD,4);}
+                        else set(PORTD,4);
+                        blue_flag++; //Toggle red led to indicate COMM mode
+                    }
+                    if (color == RED)
+                    {
+                        if (check(PORTD,5)){ //Toggle red LED (D5)
+                        clear(PORTD,5);}
+                        else set(PORTD,5);
+                        blue_flag++;
+                    }
+                } // END blue_flag
+                else
+                {
+                    if (color == BLUE){ //Leaves LED on after blinking
+                        set(PORTD,4);
+                        clear(PORTD,5);}
+                    if (color == RED){
+                        set(PORTD,5);
+                        clear(PORTD,4);}
+                }
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
                     clear(PORTB,4);}
@@ -175,15 +196,13 @@ int main()
         switch(state){
             case COMM:  //Listen for signal sent by the game
                 motor_stop();
-                if (blue_flag > 3){
-                    clear(PORTD,4);
+                if (blue_flag > 6){
                     blue_flag =0;
                     state = PAUSE;}
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
                 
             case PAUSE:  //Listen for signal sent by the game
-                clear(PORTD,4);
                 motor_stop();
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
@@ -587,5 +606,3 @@ void print_stuff(int*locate, int*goal_locate, int*ADC_read, int puckangle, int s
     
     m_usb_tx_string("STATE IS "); m_usb_tx_int(state); m_usb_tx_string("\n");   
 }
-
-

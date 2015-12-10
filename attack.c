@@ -13,6 +13,7 @@
 // 12/09 2:30 JS - updated version for Pool Play (solenoid fires in Puck2Goal)
 // 12/09 4:14p JS - removed OCR1A & OCR1B override - DUH! >> hopeless version
 // 12/09 9:50p JS - using PD code from 12/08
+// 12/09 11:14 JS - setting LED color with #define COLOR
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -37,7 +38,7 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ATT
 //Reads from ADC and stores into ADC_read, after 8 readings, finds the max value and stores in ADC_track
 
 
-#define RFOVERRIDE GO2GOAL
+#define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
 #define OVERSTATE OFF  
                 //change OVERSTATE to desired state, 0 means no OVERRIDE
@@ -65,6 +66,7 @@ unsigned char buffer[packet_length];
 
 int main()
 {
+    int color = BLUE;
     m_red(ON); //If only red is on, still initializing
     m_wait(50); //Wait to be sure no hands are above the mWii
     int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
@@ -145,11 +147,30 @@ int main()
                 //~~Display Readings for location, goal location, ADC phototransistors and puckangle~~~~~~~~~
                 print_stuff(locate, goal_locate, ADC_read, puckangle, state);
                                
-                if (blue_flag){ //Called only in COMM mode
-                    if (check(PORTD,4)){ //Toggle blue LED (D5)
-                    clear(PORTD,4);}
-                    else set(PORTD,4);
-                    blue_flag++;} //Toggle BLUE led to indicate COMM mode
+                if (blue_flag) //Called only in COMM mode
+                {
+                    if (color == BLUE)
+                    {                        
+                        if (check(PORTD,4)){ //Toggle blue LED (D4)
+                        clear(PORTD,4);}
+                        else set(PORTD,4);
+                        blue_flag++; //Toggle BLUE led to indicate COMM mode
+                    }
+                    if (color == RED)
+                    {
+                        if (check(PORTD,5)){ //Toggle red LED (D5)
+                        clear(PORTD,5);}
+                        else set(PORTD,5);
+                        blue_flag++;
+                    }
+                } // END blue_flag
+                else
+                {
+                    if (color == BLUE){ //Leaves LED on after blinking
+                        set(PORTD,4);}
+                    if (color == RED){
+                        set(PORTD,5);}
+                }
                 
                 //Resets the solenoid if it has been fired ~~~~~~~~~~~~
                 if (check(PORTB,4)){ 
@@ -169,15 +190,13 @@ int main()
         switch(state){
             case COMM:  //Listen for signal sent by the game
                 motor_stop();
-                if (blue_flag > 3){
-                    clear(PORTD,4);
+                if (blue_flag > 6){
                     blue_flag =0;
                     state = PAUSE;}
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
                 
             case PAUSE:  //Listen for signal sent by the game
-                clear(PORTD,4);
                 motor_stop();
                 sevensegdispl(8); //Number 8 means STOP!
                 break;
