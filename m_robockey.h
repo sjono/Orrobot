@@ -541,13 +541,13 @@ int goalcalibrate(int*location, int*goallocation)
 	{	
 		quadrant = 2;	//Top Left
         m_red(OFF);
-        goallocation[0]=310;
+        goallocation[0]=380;
 	}
 	if(location[0]<0&&location[1]<0)
 	{
 		quadrant = 3;	//Bottom Left
         m_red(OFF);
-		goallocation[0]=310;
+		goallocation[0]=380;
 	}
 	if(location[0]>0&&location[1]<0)
 	{

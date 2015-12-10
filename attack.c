@@ -15,6 +15,8 @@
 // 12/09 9:50p JS - using PD code from 12/08
 // 12/09 11:14 JS - setting LED color with #define COLOR
 // 12/10 1:40a JS - adding stop for mid-point (depends on MIDDLESTOP) >> calls PUCK2PASS
+// 12/10 8:15a JS - works well w/out middlestop but could still score on our goal!
+// 12/10 8a JS - changed motor_pd coeff to a,b,c = {1,1,1}
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -66,7 +68,7 @@ unsigned char buffer[packet_length];
 
 int main()
 {
-    int color = BLUE;
+    int color = RED;
     m_red(ON); //If only red is on, still initializing
     m_wait(50); //Wait to be sure no hands are above the mWii
     int locate[4]; int locate_ct=0; //Stores X, Y, angle value for the bot location based on mWii readings
@@ -272,6 +274,7 @@ int main()
                     ADC_track[3] += 1;}
                 if (ADC_track[3] > 200){
                     state = SEESPUCK;}
+                sevensegdispl(5); 
                 break;
                 
             case PUCK2GOAL:
@@ -286,7 +289,7 @@ int main()
                 if (frontswitch > 200){     //When the puck has been on the bot for a while
                     set(PORTB,4);}            //Fire solenoid (12/09 10a - fires too soon!)
 
-                sevensegdispl(2); //#2 looks like a 9
+                sevensegdispl(3); //#2 looks like a 9
                 break;
                 
             case CLEARGOAL: //Go towards GOAL and CLEAR!
@@ -478,7 +481,7 @@ int motor_pd(int*locate, int*goal_locate, int*locate_old)
     
     fwd_step = dir_pd*2/100; //Gives a reading from 0 to 100
     int a=1; //Parameters 
-    int b=2; //...........to test
+    int b=1; //...........to test           //12/10 *am - tryin
     int c=1; //...................coefficients
     
     lincrement += a*(b*left_step+c*fwd_step); //TRY TWEAKING RATIOS
