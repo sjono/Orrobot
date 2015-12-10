@@ -14,6 +14,7 @@
 // 12/09 4:14p JS - removed OCR1A & OCR1B override - DUH! >> hopeless version
 // 12/09 9:50p JS - using PD code from 12/08
 // 12/09 11:14 JS - setting LED color with #define COLOR
+// 12/10 1:40a JS - adding stop for mid-point (depends on MIDDLESTOP) >> calls PUCK2PASS
 // -----------------------------------------------------------------------------
 
 #define F_CPU 16000000UL
@@ -40,12 +41,11 @@ int puck_detect(int* ADC_read, int* ADC_track, int puckangle); //SPECIFIC TO ATT
 
 #define RFOVERRIDE OFF
                 // override RF listening mode to start in desired state
-#define OVERSTATE OFF  
-                //change OVERSTATE to desired state, 0 means no OVERRIDE
 #define USB_DEBUG ON
+#define MIDDLESTOP OFF
 #define packet_length 10
 #define channel 1
-#define DUTYMAX 170
+#define DUTYMAX 180
 
 volatile char timer0_flag=0;
 volatile char front_switch = 0;
@@ -69,11 +69,12 @@ int main()
     int color = BLUE;
     m_red(ON); //If only red is on, still initializing
     m_wait(50); //Wait to be sure no hands are above the mWii
-    int locate[4];  //Stores X, Y, angle value for the bot location based on mWii readings
+    int locate[4]; int locate_ct=0; //Stores X, Y, angle value for the bot location based on mWii readings
     int locate_old[3]; //Stores old location values
     int goal_locate[3]; //Stores X, Y, angle to the goal
     int centerpt[3] = {0, 0, 0};     //Stores X, Y, angle to center point
     int clearpt[4] = {-150, -20, 0, 0};     //Clearing start point : make sure this is a good location!
+    int target[4] = {30,100,0,0};   //Location to send puck
     int state = PAUSE;          //INTIALIZE in PAUSE mode
     int blue_flag = 0;
     int ADC_read[8];    //Stores values from the ADC readings
@@ -87,6 +88,17 @@ int main()
     for (i=0; i < 6; i++){ //Initialize with a few mWii readings to filter out noise
         localize(locate);}
     quadrant = goalcalibrate(locate, goal_locate);	//Calibrate goal location  
+    
+    if (goal_locate[0] > 0)  //Going RIGHT
+    {
+            target[0] = 30;       //Update locations to send puck
+            clearpt[0] = 150;      //Negative X is defended
+    }
+    if (goal_locate[0] < 0)  //Going LEFT
+    {
+            target[0] = -30;         //Positive X is defended
+            clearpt[0] = -150;     
+    }
     
     if (RFOVERRIDE){ //~~~~RF READING OVERRIDE~~~~Enabled in #define section up top
             state = RFOVERRIDE;} //Override state >> SEARCH1
@@ -227,16 +239,40 @@ int main()
                 if(ADC_track[3] > 500){ //DIAL THIS IN ~~ (100 = too soon), 500?
                         state = PUCK2GOAL;
                         ADC_track[3] = 0;} //Reset ADC counter
-                /*if(ADC_track[1]<20){        //If ADC readings drop too low, search again
-                        ADC_track[3]-=1;}
-                if(ADC_track[3] < -50){
-                    state=SEARCH1;
-                    ADC_track[3] = 0;} //Reset ADC counter      */
+                if(MIDDLESTOP) //TO STAY BEHIND MIDDLE LINE (see #define above)
+                {
+                    if ((goal_locate[0]<0) && (locate[0]< 20)) //Going LEFT && close to middle line
+                    {
+                        locate_ct+=1;
+                    }
+                    else if ((goal_locate[0]>0)&& (locate[0]>-20))  //Going RIGHT 
+                    {
+                       locate_ct+=1; 
+                    }
+                    else locate_ct = 0;
+                    if (locate_ct > 50)
+                    {
+                        if(motor_slow()){
+                            state = PUCK2PASS;}
+                        locate_ct = 0;
+                    }
+                }
                 /*if (frontswitch > 200){     //When the puck has been on the bot for a while
                     set(PORTB,4);}            //Fire solenoid (moved to the Puck2Goal state)*/           
                 sevensegdispl(4); //#4 Looks like a lower case c
-                OCR1A = 180, OCR1B = 180;
+                OCR1A = DUTYMAX, OCR1B = DUTYMAX;
                 break;            
+            
+            case PUCK2PASS:
+                if (motor_pd(locate,target, locate_old)<20){ //Send the bot to target location
+                    target[3]+=1;}
+                set(DDRB,5);set(DDRB,6);    //Make sure motors are on
+                set(PORTC,6); set(PORTC,7); //Currently only drives forward                
+                if (ADC_read[0]>500){   //if center ADC reading drops too low, go to puck ~~ lower threshhold?!
+                    ADC_track[3] += 1;}
+                if (ADC_track[3] > 200){
+                    state = SEESPUCK;}
+                break;
                 
             case PUCK2GOAL:
                 motor_pd(locate,goal_locate, locate_old); //TURNED OFF FOR TESTIN!!!!
@@ -258,7 +294,7 @@ int main()
                     clearpt[3] += 1;
                     sevensegdispl(2);} //#2 looks like a 9
                 if (clearpt[3] > 100){      //NEXT SWEEP!
-                    clearpt[1] = -clearpt[0]; clearpt[0]+=10; clearpt[2] = 100; //Go to opposite Y-value
+                    clearpt[1] = -clearpt[0];  //Go to opposite Y-value
                     clearpt[3] = 0;}
                 if(clearpt[1] > 0){
                     sevensegdispl(2);} //#2 looks like a 9
@@ -271,9 +307,7 @@ int main()
                     // search mode
                 break;   
         }   //~~~~~~~~~~~~~~~~~~END SWITCH STATEMENT~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        
-        if(OVERSTATE){  //Override code to keep the bot in one particular state
-            state = OVERSTATE;}
+
     } //~~~~END MAIN WHILE LOOP~~~~~~~~~~~~~~~~~~~~~~~~
 }
 

@@ -32,6 +32,7 @@
 #define CLEARGOAL 60
 #define PASSBEHIND 65
 #define RESETLOCATION 70
+#define PUCK2PASS 75
 
 char localize(int* locate);
 //Reads from mWii and writes X, Y values to locate[0] and locate[1] respectively
@@ -45,8 +46,12 @@ void sevensegdispl(int state);
 void go2goal(int* location, int destlocation);
 //Used to move the bot to the goal location by looking at the destination angle
 
-char motor_stop();
+void motor_stop();
 //Stops the motors
+
+char motor_slow();
+//Slows down the motor, returns 1 when motor is stopped
+
 void go2puck(int puckangle);
 //Goes to the puck based on puckangle reading
 
@@ -500,25 +505,28 @@ void go2puck(int puckangle)
 
 
 //****************MOTOR STOP FUNCTION********************************//
-char motor_stop()
+void motor_stop()
 {
-	/*if(OCR1A>10){
+
+    clear(DDRB,5);//clear B5 to turn off L motor
+    clear(DDRB,6);//clear B5 to turn off L motor
+}
+
+char motor_slow()
+{
+    if(OCR1A>10){
         OCR1A-=1;}
     else clear(DDRB,5);//clear B5 to turn off L motor
     
     if(OCR1B>10){
-        OCR1B-+1;}
+        OCR1B-=1;}
     else  clear(DDRB,6); //clear B6 to turn off R motor
     
-    if (check(DDRB,5) && check(DDRB6)){
+    if (check(DDRB,5) && check(DDRB,6)){
         return 1;}
-    else return 0;*/
-    
-    //SIMPLEST VERSION
-    clear(DDRB,5);//clear B5 to turn off L motor
-    clear(DDRB,6);//clear B5 to turn off L motor
-    return 1;
+    else return 0;
 }
+
 
 
 int goalcalibrate(int*location, int*goallocation)
