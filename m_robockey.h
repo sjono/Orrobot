@@ -16,6 +16,9 @@
 #include "m_rf.h"
 #include "m_wii.h"
 
+#define RED 10
+#define BLUE 20
+
 #define PLAY 161
 #define PAUSE 164
 #define COMM 160
